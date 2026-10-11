@@ -977,6 +977,8 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(require('./sitemap')({ db: pool }));
+
 
 app.use(express.static(path.join(__dirname, '../public'), {
   maxAge: '1h',
