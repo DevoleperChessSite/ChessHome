@@ -153,6 +153,15 @@ const {
   finishTournamentGame,
   anticheatBan,
 } = require('./core');
+
+// ── Владельцы сайта ───────────────────────────────────────────
+// Только они могут выдавать/снимать роль админа и читать переписки.
+const SITE_OWNERS = ['chesshome', 'marina64'];
+const isSiteOwner = (u) => !!u && SITE_OWNERS.includes(String(u.username || '').toLowerCase());
+function requireOwner(req, res, next) {
+  if (!isSiteOwner(req.user)) return res.status(403).json({ error: 'Доступно только владельцам сайта' });
+  return next();
+}
 const moderation = require('./moderation');
 const twins = require('./twins');   // оценка «один человек» по сигналам устройства/сети
 require('./botmoderator');
@@ -786,12 +795,13 @@ app.get('/api/admin/users', authMiddleware, async (req, res) => {
 
 
 app.post('/api/admin/role', authMiddleware, async (req, res) => {
-  await requireAdmin(req, res, async () => {
+  await requireOwner(req, res, async () => {
     try {
       const target = await getUser(String(req.body.username || '').toLowerCase());
       if (!target) return res.status(404).json({ error: 'Не найден' });
       if (target.username.toLowerCase() === String(req.user.username).toLowerCase())
         return res.status(400).json({ error: 'Нельзя изменить собственную роль' });
+      if (isSiteOwner(target)) return res.status(403).json({ error: 'Роль владельца изменять нельзя' });
 
       const grant = !!req.body.grant;
       if (grant) {
@@ -1945,7 +1955,7 @@ app.post('/api/admin/system-message', authMiddleware, rateLimit(limiterStrict), 
 
 
 app.get('/api/admin/dm/conversations/:username', authMiddleware, async (req, res) => {
-  await requireAdmin(req, res, async () => {
+  await requireOwner(req, res, async () => {
     const target = req.params.username.toLowerCase();
     const targetUser = await getUser(target);
     if (!targetUser) return res.status(404).json({ error: 'Пользователь не найден' });
@@ -1966,7 +1976,7 @@ app.get('/api/admin/dm/conversations/:username', authMiddleware, async (req, res
 
 
 app.get('/api/admin/dm/messages/:username/:partner', authMiddleware, async (req, res) => {
-  await requireAdmin(req, res, async () => {
+  await requireOwner(req, res, async () => {
     const target  = req.params.username.toLowerCase();
     const partner = req.params.partner.toLowerCase();
     const targetUser  = await getUser(target);
@@ -1986,7 +1996,7 @@ app.get('/api/admin/dm/messages/:username/:partner', authMiddleware, async (req,
 
 
 app.get('/api/admin/dm/audit', authMiddleware, async (req, res) => {
-  await requireAdmin(req, res, async () => {
+  await requireOwner(req, res, async () => {
     const target = (req.query.target || '').toLowerCase();
     const r = target
       ? await db('SELECT * FROM admin_dm_audit WHERE target ILIKE $1 ORDER BY created_at DESC LIMIT 200', [target])
