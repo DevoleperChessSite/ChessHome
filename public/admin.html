@@ -472,6 +472,8 @@ initHeader();
 <script>
 const REASON_LABELS = {cheat:'🤖 Читы/движок', abuse:'🤬 Оскорбления', disconnect:'🔌 Дисконнекты', multiaccounting:'👥 Мульти-аккаунты', spam:'📢 Спам', other:'❓ Другое'};
 
+const SITE_OWNERS = ['chesshome', 'marina64'];
+function isOwner() { return !!currentUser && SITE_OWNERS.includes(String(currentUser.username || '').toLowerCase()); }
 async function adminInit() {
   await new Promise(r => setTimeout(r, 700));
   if (!currentUser || currentUser.role !== 'admin') {
@@ -479,11 +481,28 @@ async function adminInit() {
     return;
   }
   document.getElementById('admin-content').style.display = '';
+  if (!isOwner()) lockDmTab();
   loadDashboard();
   loadReportsBadge();
   loadAppealsBadge();
   loadAutomodBadge();
   setInterval(loadAutomodBadge, 30000);
+}
+
+// Вкладка «Переписки» для не-владельцев: остаётся видимой с замочком, но закрыта.
+function lockDmTab() {
+  const btn = document.getElementById('tab-dms');
+  if (btn) { btn.style.opacity = '0.55'; btn.title = 'Доступно только владельцам сайта'; }
+  const panel = document.getElementById('panel-dms');
+  if (!panel) return;
+  Array.from(panel.children).forEach(ch => { ch.style.display = 'none'; });
+  const box = document.createElement('div');
+  box.id = 'dm-locked';
+  box.style.cssText = 'text-align:center;padding:70px 20px';
+  box.innerHTML = '<div style="font-size:48px;margin-bottom:12px">🔒</div>'
+    + '<div style="font-size:18px;font-weight:700;margin-bottom:8px">Доступ закрыт</div>'
+    + '<div style="color:var(--text-muted);font-size:13.5px;line-height:1.5">Просмотр переписок доступен только владельцам сайта.</div>';
+  panel.appendChild(box);
 }
 
 function switchTab(tab) {
@@ -509,7 +528,7 @@ function switchTab(tab) {
   if (tab === 'tab-appeals') loadAppeals('open');
   if (tab === 'tab-chat') loadAdminChat();
   if (tab === 'tab-puzzles') puzzleLoad();
-  if (tab === 'tab-dms') loadDmAudit();
+  if (tab === 'tab-dms' && isOwner()) loadDmAudit();
   if (tab === 'tab-twinks') loadTwinks();
   if (tab === 'tab-logs') loadAdminLogs();
 }
@@ -803,7 +822,7 @@ function renderUserList(users, container) {
     info.appendChild(nm); info.appendChild(st); row.appendChild(info);
     const btns = document.createElement('div'); btns.style.cssText = 'display:flex;gap:6px;flex-shrink:0';
     const canGrantVip = currentUser && (currentUser.role === 'admin' || ['chesshome','marina64'].includes(currentUser.username.toLowerCase()));
-    if (u.username !== currentUser.username) {
+    if (isOwner() && u.username !== currentUser.username) {
       if (u.role === 'admin') {
         const ra = document.createElement('button'); ra.className='btn btn-ghost btn-sm'; ra.title='Снять роль администратора'; ra.textContent='👑 Снять админа';
         ra.onclick = async () => {
