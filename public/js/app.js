@@ -2819,7 +2819,7 @@ async function loadPuzzlesPage() {
         lb.slice(0,10).forEach((u,i)=>{
           const row=document.createElement('div'); row.className='puzzle-lb-row';
           row.innerHTML=`<div class="puzzle-lb-rank">${i<3?['🥇','🥈','🥉'][i]:u.rank}</div>
-            <div class="puzzle-lb-name">${escapeHtml(u.username)}</div>
+            <div class="puzzle-lb-name">${escapeHtml(u.username)}${pzOldSystemBadge(u)}</div>
             <div class="puzzle-lb-rating">${u.puzzleRating}</div>`;
           row.addEventListener('click',()=>openUserProfile(u.username));
           el.appendChild(row);
@@ -3016,6 +3016,58 @@ async function puzzleNext() {
   }
 }
 
+// Пометка у ников, чей рейтинг набран по старой системе и ещё не сброшен.
+function pzOldSystemBadge(u) {
+  if (!u || !u.oldSystem) return '';
+  return '<span title="' + escapeHtml(chT('puzzles.lb_old_system_hint', 'Рейтинг набран по старой системе подсчёта и несопоставим с новым')) + '" ' +
+    'style="margin-left:6px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap;' +
+    'background:rgba(231,76,60,.14);color:#e74c3c;border:1px solid rgba(231,76,60,.35);vertical-align:middle">' +
+    escapeHtml(chT('puzzles.lb_old_system', 'OLD Rating System')) + '</span>';
+}
+
+// Баннер с кнопкой сброса — показывается только тем, кто ещё на старой системе.
+async function pzRenderRatingResetBox(listEl) {
+  const panel = listEl && listEl.parentElement;
+  if (!panel || !panel.parentElement) return;
+  const old = document.getElementById('puzzle-rating-reset-box');
+  if (old) old.remove();
+  if (!currentUser) return;
+  let st;
+  try { st = await apiGet('/puzzles/rating/status'); } catch (e) { return; }
+  if (!st || !st.canReset) return;
+
+  const box = document.createElement('div');
+  box.id = 'puzzle-rating-reset-box';
+  box.style.cssText = 'display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px;padding:14px 16px;border-radius:14px;border:1px solid rgba(201,168,76,.35);background:linear-gradient(120deg,rgba(201,168,76,.12),rgba(201,168,76,.03))';
+  box.innerHTML =
+    '<div style="min-width:220px;flex:1;font-size:13px;line-height:1.5;color:var(--text-secondary)">' +
+      '<div style="font-weight:700;color:var(--text-primary);margin-bottom:2px">' + escapeHtml(chT('puzzles.reset_title', 'Новая система рейтинга (Glicko-2)')) + '</div>' +
+      escapeHtml(chT('puzzles.reset_text', 'Твой рейтинг набран по старой системе. Сбрось его, чтобы начать с нуля по новой.')) +
+    '</div>';
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-primary btn-sm';
+  btn.textContent = chT('puzzles.reset_btn', 'Сбросить старый рейтинг');
+  btn.addEventListener('click', () => pzResetOldRating(btn));
+  box.appendChild(btn);
+  panel.parentElement.insertBefore(box, panel);
+}
+
+async function pzResetOldRating(btn) {
+  const ok = confirm(chT('puzzles.reset_confirm', 'Сбросить старый рейтинг задач и начать с 1200 по новой системе? Это действие необратимо. Решённые задачи останутся.'));
+  if (!ok) return;
+  if (btn) btn.disabled = true;
+  try {
+    const r = await apiPost('/puzzles/rating/reset', {});
+    if (currentUser) currentUser.puzzle_rating = r && r.rating != null ? r.rating : 1200;
+    toast(chT('puzzles.reset_done', 'Рейтинг сброшен — начинаем с 1200 по новой системе'), 'success');
+    const box = document.getElementById('puzzle-rating-reset-box');
+    if (box) box.remove();
+    loadPuzzleLeaderboardFull();
+  } catch (e) {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function loadPuzzleLeaderboardFull() {
   const el=document.getElementById('puzzle-leaderboard-full');
   if (!el) return;
@@ -3033,13 +3085,14 @@ async function loadPuzzleLeaderboardFull() {
       row.onmouseenter=()=>{ row.style.background='rgba(255,255,255,0.04)'; };
       row.onmouseleave=()=>{ row.style.background=''; };
       row.innerHTML=`<div style="font-weight:800;font-size:13px">${i<3?['🥇','🥈','🥉'][i]:u.rank}</div>
-        <div style="font-weight:600;font-size:14px">${escapeHtml(u.username)}</div>
+        <div style="font-weight:600;font-size:14px">${escapeHtml(u.username)}${pzOldSystemBadge(u)}</div>
         <div style="text-align:right;font-weight:700;color:var(--accent)">${u.puzzleRating}</div>
         <div style="text-align:right;font-size:13px;color:var(--text-secondary)">${u.puzzleSolved}</div>
         <div style="text-align:right;font-size:13px;color:var(--text-muted)">${u.accuracy}%</div>`;
       row.addEventListener('click',()=>openUserProfile(u.username));
       el.appendChild(row);
     });
+    pzRenderRatingResetBox(el);
   } catch(e) { el.innerHTML='<div style="padding:20px;text-align:center;color:var(--red)">'+chT('puzzles.lb_error','Ошибка загрузки')+'</div>'; }
 }
 
