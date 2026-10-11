@@ -318,12 +318,14 @@ async function removeEmoji() {
 // ── Смена пароля ──
 function openChangePasswordModal() {
   if (!currentUser) { toast(CH_I18N.t('common.login_required'), 'error'); return; }
-  document.getElementById('modal-change-password').style.display = '';
+  const m = document.getElementById('modal-change-password');
+  m.style.display = 'flex'; m.classList.add('open');
   setTimeout(() => document.getElementById('pw-current')?.focus(), 50);
 }
 
 function closeChangePasswordModal() {
-  document.getElementById('modal-change-password').style.display = 'none';
+  const m = document.getElementById('modal-change-password');
+  m.classList.remove('open'); m.style.display = 'none';
   ['pw-current', 'pw-new', 'pw-repeat'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 }
 
@@ -352,12 +354,14 @@ async function submitChangePassword() {
 function requestDeleteAccount() {
   if (!currentUser) { toast(CH_I18N.t('common.login_required'), 'error'); return; }
   if (!confirm(CH_I18N.t('settings.delete_confirm'))) return;
-  document.getElementById('modal-confirm-password').style.display = '';
+  const m = document.getElementById('modal-confirm-password');
+  m.style.display = 'flex'; m.classList.add('open');
   setTimeout(() => document.getElementById('confirm-password-input')?.focus(), 50);
 }
 
 function closeConfirmPasswordModal() {
-  document.getElementById('modal-confirm-password').style.display = 'none';
+  const m = document.getElementById('modal-confirm-password');
+  m.classList.remove('open'); m.style.display = 'none';
   const inp = document.getElementById('confirm-password-input');
   if (inp) inp.value = '';
 }

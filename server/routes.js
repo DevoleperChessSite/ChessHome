@@ -154,6 +154,21 @@ const {
   anticheatBan,
 } = require('./core');
 
+// ── Удалённые аккаунты ────────────────────────────────────────
+// Ник удалённого аккаунта навсегда занят (проверка в /api/register), а сам
+// аккаунт продолжает учитываться в общей статистике.
+db(`CREATE TABLE IF NOT EXISTS deleted_usernames (username_low TEXT PRIMARY KEY, deleted_at BIGINT NOT NULL)`).catch(() => {});
+async function countDeletedUsers() {
+  try { return parseInt((await db('SELECT COUNT(*) FROM deleted_usernames')).rows[0].count) || 0; }
+  catch { return 0; }
+}
+async function getDeletedUser(usernameLow) {
+  try {
+    const r = await db('SELECT deleted_at FROM deleted_usernames WHERE username_low = $1', [usernameLow]);
+    return r.rows[0] ? { deletedAt: Number(r.rows[0].deleted_at) } : null;
+  } catch { return null; }
+}
+
 // ── Владельцы сайта ───────────────────────────────────────────
 // Только они могут выдавать/снимать роль админа и читать переписки.
 const SITE_OWNERS = ['chesshome', 'marina64'];
@@ -573,7 +588,11 @@ app.post('/api/account/delete', authMiddleware, rateLimit(limiterAuth, 'Слиш
 
 app.get('/api/users/:username', async (req, res) => {
   const user = await getUser(req.params.username.toLowerCase());
-  if (!user) return res.status(404).json({ error: 'Не найден' });
+  if (!user) {
+    const gone = await getDeletedUser(req.params.username.toLowerCase());
+    if (gone) return res.status(404).json({ error: 'Аккаунт удалён', deleted: true, deletedAt: gone.deletedAt });
+    return res.status(404).json({ error: 'Не найден' });
+  }
   const payload = verifyToken(getAuthToken(req));
   const isSelf = payload && payload.username && payload.username.toLowerCase() === user.username.toLowerCase();
   const data = isSelf ? { ...sanitizeUser(user, true), email: user.email || null } : sanitizeUser(user, false);
@@ -4134,11 +4153,12 @@ app.get('/api/stats', async (req, res) => {
     ]);
 
     const totalMessages = parseInt(dm.rows[0].count) + parseInt(chat.rows[0].count) + parseInt(clubChat.rows[0].count);
+    const deletedUsers = await countDeletedUsers();   // удалённые аккаунты остаются в общем счётчике
 
     res.json({
       meta: { daysAlive, founded: '30.03.2026' },
       totals: {
-        users: parseInt(users.rows[0].count), games: parseInt(games.rows[0].count), messages: totalMessages,
+        users: parseInt(users.rows[0].count) + deletedUsers, deletedUsers, games: parseInt(games.rows[0].count), messages: totalMessages,
         dmMessages: parseInt(dm.rows[0].count), chatMessages: parseInt(chat.rows[0].count), clubMessages: parseInt(clubChat.rows[0].count),
         blogPosts: parseInt(blogPosts.rows[0].count), blogComments: parseInt(blogComments.rows[0].count),
         blogLikes: parseInt(blogLikes.rows[0].count), blogViews: parseInt(blogViews.rows[0].count),
