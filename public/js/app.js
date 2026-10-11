@@ -2516,24 +2516,38 @@ async function pzDoMove(from, to, promoChoice) {
   pzRender();
 
   try {
+    if (pz._startP) { try { await pz._startP; } catch (e) {} }
     const res = await apiPost('/puzzles/' + pz.puzzle.id + '/move', { moveIndex: pz._moveIndex || 0, move });
+
+    if (res.restart) {
+      // Сервер потерял сессию (например, перезапуск) — начинаем задачу заново.
+      toast(chT('puzzles.session_restart', 'Сессия задачи сброшена — начни задачу заново'), 'info');
+      puzzleReset();
+      return;
+    }
+
+    if (res.illegal) {
+      // Невозможный ход: штрафа нет, просто возвращаем фигуру.
+      const fbI = document.getElementById('puzzle-feedback');
+      if (fbI) { fbI.style.display = 'block'; fbI.className = 'puzzle-feedback wrong'; fbI.textContent = chT('puzzles.feedback_illegal', '✗ Так ходить нельзя'); }
+      setTimeout(pzRollbackLastPlayerMove, 700);
+      return;
+    }
 
     if (!res.correct) {
       // Неверный ход
       pz._failed = true;
       const fb = document.getElementById('puzzle-feedback');
       if (fb) { fb.style.display = 'block'; fb.className = 'puzzle-feedback wrong'; fb.textContent = chT('puzzles.feedback_wrong', '✗ Неверно — попробуй ещё раз'); }
-      apiPost('/puzzles/' + pz.puzzle.id + '/attempt', { moves: pz._history.map(h => h.label) }).then(data => {
-        // Показываем изменение рейтинга если есть
-        if (data && data.ratingDelta && data.ratingDelta < 0) {
-          const rc = document.getElementById('puzzle-rating-change');
-          const rd = document.getElementById('puzzle-rating-delta');
-          const rn = document.getElementById('puzzle-new-rating');
-          if (rc) rc.style.display = 'block';
-          if (rd) { rd.textContent = data.ratingDelta; rd.style.color = '#e74c3c'; }
-          if (rn) rn.textContent = chT('puzzles.rating_prefix', 'Рейтинг:') + ' ' + data.newPuzzleRating;
-        }
-      }).catch(() => {});
+      // Рейтинг (Glicko-2) считает сервер и присылает в ответе на ход.
+      if (res.rating && res.rating.delta) {
+        const rc = document.getElementById('puzzle-rating-change');
+        const rd = document.getElementById('puzzle-rating-delta');
+        const rn = document.getElementById('puzzle-new-rating');
+        if (rc) rc.style.display = 'block';
+        if (rd) { rd.textContent = (res.rating.delta > 0 ? '+' : '') + res.rating.delta; rd.style.color = res.rating.delta > 0 ? '#2ecc71' : '#e74c3c'; }
+        if (rn) rn.textContent = chT('puzzles.rating_prefix', 'Рейтинг:') + ' ' + res.rating.newRating;
+      }
       setTimeout(() => {
         // Откатываем к позиции до неверного хода
         pz._history.pop();
@@ -2576,8 +2590,11 @@ async function pzDoMove(from, to, promoChoice) {
     pz._moveIndex = (pz._moveIndex || 0) + 1;
 
     if (res.finished) {
-      const data = await apiPost('/puzzles/' + pz.puzzle.id + '/attempt', { moves: pz._history.map(h => h.label) });
-      pzShowSuccess(data);
+      pzShowSuccess({
+        ratingDelta: res.rating ? res.rating.delta : 0,
+        newPuzzleRating: res.rating ? res.rating.newRating : undefined,
+        unrated: !res.rating,   // повторное решение — рейтинг не меняется
+      });
       return;
     }
 
@@ -2611,24 +2628,11 @@ async function pzDoMove(from, to, promoChoice) {
       }, 600);
     }
   } catch(e) {
-    // Fallback: локальная проверка
-    const sol = (pz.puzzle.solution || '').trim().split(/\s+/)[0].toLowerCase();
-    if (move !== sol) {
-      pz._failed = true;
-      const fb = document.getElementById('puzzle-feedback');
-      if (fb) { fb.style.display = 'block'; fb.className = 'puzzle-feedback wrong'; fb.textContent = chT('puzzles.feedback_wrong', '✗ Неверно — попробуй ещё раз'); }
-      setTimeout(() => {
-        pz._history.pop();
-        pz.board = pzFenToBoard(pz.puzzle.fen); pz.lastMove = null; pz.selected = null;
-        pz._historyIdx = -1;
-        if (ml) ml.textContent = '—';
-        if (fb) fb.style.display = 'none';
-        pzComputeLegalDests();
-        pzRender();
-      }, 1200);
-    } else {
-      pzShowSuccess({ ratingDelta: 0 });
-    }
+    // Нет связи с сервером. Решения на клиенте нет (так и задумано), поэтому
+    // локально проверять нечем — возвращаем фигуру и просим повторить.
+    const fb = document.getElementById('puzzle-feedback');
+    if (fb) { fb.style.display = 'block'; fb.className = 'puzzle-feedback wrong'; fb.textContent = chT('puzzles.feedback_network', 'Нет связи с сервером — попробуй ещё раз'); }
+    setTimeout(pzRollbackLastPlayerMove, 1200);
   }
 }
 
@@ -2731,8 +2735,8 @@ document.addEventListener('keydown', (e) => {
 function pzShowSuccess(data) {
   pz.solved = true;
   const fb = document.getElementById('puzzle-feedback');
-  const alreadySolved = data && data.alreadySolved;
-  const feedbackText = alreadySolved ? chT('puzzles.feedback_solved_already', '✓ Правильно! (уже решено — рейтинг не меняется)') : chT('puzzles.feedback_solved', '✓ Отлично! Задача решена!');
+  const alreadySolved = data && (data.alreadySolved || data.unrated);
+  const feedbackText = alreadySolved ? chT('puzzles.feedback_solved_already', '✓ Правильно! (повторная попытка — рейтинг не меняется)') : chT('puzzles.feedback_solved', '✓ Отлично! Задача решена!');
   if (fb) { fb.style.display = 'block'; fb.className = 'puzzle-feedback correct'; fb.textContent = feedbackText; }
   if (data && data.ratingDelta !== undefined && data.ratingDelta !== 0 && !alreadySolved) {
     const rc = document.getElementById('puzzle-rating-change');
@@ -2758,6 +2762,7 @@ function puzzleReset() {
   const fb=document.getElementById('puzzle-feedback'); if(fb) fb.style.display='none';
   const nb=document.getElementById('puzzle-nav-btns'); if(nb) nb.style.display='none';
   const rc=document.getElementById('puzzle-rating-change'); if(rc) rc.style.display='none';
+  pz._startP = pzStartSession(pz.puzzle);
   pzRender();
 }
 
@@ -2886,6 +2891,29 @@ function filterPuzzleDiff(diff) {
   fetchTopicPuzzles(true);
 }
 
+// Серверная сессия задачи: позицию и результат ведёт сервер, клиент шлёт только ходы.
+async function pzStartSession(puzzle) {
+  if (!currentUser || !puzzle || !puzzle.id) return;
+  try { await apiPost('/puzzles/' + puzzle.id + '/start', {}); } catch (e) { /* первый ход создаст сессию сам */ }
+}
+
+// Откат последнего хода игрока (сервер ход не принял или нет связи).
+function pzRollbackLastPlayerMove() {
+  pz._history.pop();
+  const last = pz._history[pz._history.length - 1];
+  pz.board = last ? [...last.board] : pzFenToBoard(pz.puzzle.fen);
+  pz.lastMove = last ? last.lastMove : null;
+  pz.selected = null;
+  pz._historyIdx = -1;
+  pz.playerTurn = pzBoardTurn(pz.puzzle.fen);
+  const ml = document.getElementById('puzzle-moves-list');
+  if (ml) ml.textContent = pz._history.filter(h => h.byPlayer).map(h => h.label).join(' ') || '—';
+  const fb = document.getElementById('puzzle-feedback');
+  if (fb) fb.style.display = 'none';
+  pzComputeLegalDests();
+  pzRender();
+}
+
 function openPuzzleSolve(puzzle, topic) {
   pz.puzzle=puzzle; pz.solved=false; pz.selected=null; pz.lastMove=null; pz.flipped=false; pz._moveIndex=0; pz._autoPlaying=false;
   pz._history=[]; pz._historyIdx=-1; pz._failed=false;
@@ -2915,6 +2943,7 @@ function openPuzzleSolve(puzzle, topic) {
   const nb=document.getElementById('puzzle-nav-btns'); if(nb) nb.style.display='none';
   const rc=document.getElementById('puzzle-rating-change'); if(rc) rc.style.display='none';
   showPage('puzzle-solve');
+  pz._startP = pzStartSession(puzzle);
   setTimeout(()=>pzRender(), 60);
 }
 
