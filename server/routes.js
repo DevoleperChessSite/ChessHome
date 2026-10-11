@@ -156,6 +156,8 @@ const {
 const moderation = require('./moderation');
 const twins = require('./twins');   // оценка «один человек» по сигналам устройства/сети
 require('./botmoderator');
+const puzzleService = require('./services/puzzle.service'); // задачи: проверка ходов + рейтинг Glicko-2
+puzzleService.ensureSchema().catch(() => {});              // колонки рейтинга создаются при старте (идемпотентно)
 
 // Единая серверная реализация экранирования HTML — в server/utils.js
 // (используется в server-side рендере страницы партии /game/:gameId).
@@ -3687,7 +3689,7 @@ app.get('/api/puzzles', async (req, res) => {
       return res.json(r.rows.map(row => ({
         id: row.id, title: row.title, description: row.description,
         fen: row.fen, topic: row.topic, difficulty: row.difficulty,
-        playCount: row.play_count, correctCount: row.correct_count,
+        playCount: row.play_count, correctCount: row.correct_count, rating: puzzleService.publicPuzzleRating(row),
         userStatus: solvedSet.has(row.id) ? 'solved' : attemptedSet.has(row.id) ? 'attempted' : 'new',
       })));
     }
@@ -3702,7 +3704,7 @@ app.get('/api/puzzles', async (req, res) => {
     return res.json(r.rows.map(row => ({
       id: row.id, title: row.title, description: row.description,
       fen: row.fen, topic: row.topic, difficulty: row.difficulty,
-      playCount: row.play_count, correctCount: row.correct_count,
+      playCount: row.play_count, correctCount: row.correct_count, rating: puzzleService.publicPuzzleRating(row),
       userStatus: 'new',
     })));
 
@@ -3715,94 +3717,75 @@ app.get('/api/puzzles/:id', async (req, res) => {
     const r = await db('SELECT * FROM puzzles WHERE id=$1',[req.params.id]);
     if (!r.rows[0]) return res.status(404).json({ error: 'Не найдена' });
     const p = r.rows[0];
-    res.json({ id:p.id, title:p.title, description:p.description, fen:p.fen, topic:p.topic, difficulty:p.difficulty, playCount:p.play_count, correctCount:p.correct_count });
+    res.json({ id:p.id, title:p.title, description:p.description, fen:p.fen, topic:p.topic, difficulty:p.difficulty, playCount:p.play_count, correctCount:p.correct_count, rating: puzzleService.publicPuzzleRating(p) });
   } catch(e) { res.status(500).json({ error: 'Ошибка' }); }
 });
 
 
-app.post('/api/puzzles/:id/move', authMiddleware, rateLimit(limiterStrict), async (req, res) => {
+// ── Задачи: сервер — единственный судья ─────────────────────────
+// Позицию, шаг и результат ведёт сервер (сессия «пользователь + задача»).
+// Клиент шлёт только ход. Мат засчитывается всегда. Рейтинг — Glicko-2,
+// один раз за первую попытку. Подробности: services/puzzle.service.js.
+app.post('/api/puzzles/:id/start', authMiddleware, rateLimit(limiterStrict), async (req, res) => {
   try {
-    const { moveIndex, move } = req.body;
-    if (move === undefined || moveIndex === undefined) return res.status(400).json({ error: 'Укажите move и moveIndex' });
-    const r = await db('SELECT * FROM puzzles WHERE id=$1', [req.params.id]);
+    const r = await db('SELECT id, fen, solution FROM puzzles WHERE id=$1', [req.params.id]);
     if (!r.rows[0]) return res.status(404).json({ error: 'Задача не найдена' });
-    const puzzle = r.rows[0];
-    const { playerMoves, autoMoves } = parsePuzzleSolution(puzzle.solution);
-
-    const expectedRaw = playerMoves[moveIndex];
-    if (!expectedRaw) return res.status(400).json({ error: 'Некорректный moveIndex' });
-    // Клиент присылает чистый UCI без символов шаха/мата ("a2a8"), а в
-    // решениях они могут быть ("a2a8#") — сравниваем нормализованно.
-    const stripAnno = (v) => v.replace(/[+#!?]/g, '');
-    const playerMove    = stripAnno((move || '').toLowerCase().trim());
-    const acceptedMoves = expectedRaw.split('|').map(m => stripAnno(m.trim().toLowerCase()));
-    let correct = acceptedMoves.includes(playerMove)
-      || acceptedMoves.some(m => m.length===4 && playerMove.startsWith(m))
-      || acceptedMoves.some(m => m.length===5 && m.endsWith('q') && playerMove===m.slice(0,4));
-    // Безопасность (P0): решение задачи больше НИКОГДА не покидает сервер.
-    if (!correct) return res.json({ correct: false });
-    const autoMove = autoMoves[moveIndex] || null;
-    const finished = moveIndex >= playerMoves.length - 1;
-    res.json({ correct: true, autoMove, finished });
-  } catch(e) { console.error('[Puzzle move]', e.message); res.status(500).json({ error: 'Ошибка' }); }
+    const user = await getUser(req.user.username.toLowerCase());
+    if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+    const { rated } = await puzzleService.startSession(user.id, r.rows[0]);
+    res.json({ ok: true, rated });
+  } catch(e) { console.error('[Puzzle start]', e.message); res.status(500).json({ error: 'Ошибка' }); }
 });
 
-
-app.post('/api/puzzles/:id/attempt', authMiddleware, rateLimit(limiterStrict), async (req, res) => {
+app.post('/api/puzzles/:id/move', authMiddleware, rateLimit(limiterStrict), async (req, res) => {
   try {
-    const { moves } = req.body;
-
-    const r = await db('SELECT * FROM puzzles WHERE id=$1', [req.params.id]);
+    const { moveIndex, move } = req.body || {};
+    if (typeof move !== 'string' || move.length > 12) return res.status(400).json({ error: 'Укажите move' });
+    const r = await db('SELECT id, fen, solution FROM puzzles WHERE id=$1', [req.params.id]);
     if (!r.rows[0]) return res.status(404).json({ error: 'Задача не найдена' });
-    const puzzle = r.rows[0];
-
-    if (!Array.isArray(moves) || moves.length === 0) {
-      return res.status(400).json({ error: 'Не указаны ходы решения' });
-    }
-    const { playerMoves } = parsePuzzleSolution(puzzle.solution);
-    const userPlayerMoves = moves.filter((_, i) => i % 2 === 0);
-    const correct = playerMoves.length > 0 &&
-      userPlayerMoves.length === playerMoves.length &&
-      playerMoves.every((m, i) => {
-        // Нормализация шах/мат-аннотаций: клиент шлёт чистый UCI ("a2a8"),
-        // в решениях может быть "a2a8#".
-        const stripAnno = (v) => v.replace(/[+#!?]/g, '');
-        const variants = m.split('|').map(v => stripAnno(v.trim().toLowerCase()));
-        const played   = stripAnno((userPlayerMoves[i] || '').toLowerCase().trim());
-        return variants.includes(played)
-          || variants.some(v => v.length===4 && played.startsWith(v))
-          || variants.some(v => v.length===5 && v.endsWith('q') && played===v.slice(0,4));
-      });
-
     const user = await getUser(req.user.username.toLowerCase());
     if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
 
-    const existing = await db('SELECT correct FROM puzzle_attempts WHERE user_id=$1 AND puzzle_id=$2', [user.id, puzzle.id]);
-    const alreadySolved = existing.rows[0]?.correct;
+    const out = await puzzleService.handleMove(user.id, r.rows[0], move, moveIndex);
+    // Решение клиенту НИКОГДА не уходит — только верно/неверно и ответный ход.
+    if (out.status === 'restart') return res.json({ correct: false, restart: true });
+    if (out.status === 'illegal') return res.json({ correct: false, illegal: true });
+    if (out.status === 'done')    return res.json({ correct: false, finished: true });
 
-    if (!alreadySolved) {
-      await db(`INSERT INTO puzzle_attempts (id,user_id,puzzle_id,correct,created_at) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (user_id,puzzle_id) DO UPDATE SET correct=$4,created_at=$5`, [uuidv4(), user.id, puzzle.id, correct, Date.now()]);
-      await db('UPDATE puzzles SET play_count=play_count+1 WHERE id=$1', [puzzle.id]);
-      if (correct) await db('UPDATE puzzles SET correct_count=correct_count+1 WHERE id=$1', [puzzle.id]);
-      const ratingDelta = correct ? 15 : -10;
-      const upd = await db(
-        `UPDATE users SET
-           puzzle_rating  = GREATEST(100, COALESCE(puzzle_rating, 1200) + $1),
-           puzzle_solved  = COALESCE(puzzle_solved, 0) + $2,
-           puzzle_attempted = COALESCE(puzzle_attempted, 0) + 1
-         WHERE id = $3
-         RETURNING puzzle_rating, puzzle_solved, puzzle_attempted`,
-        [ratingDelta, correct ? 1 : 0, user.id]
-      );
-      if (upd.rows[0]) {
-        user.puzzle_rating = upd.rows[0].puzzle_rating;
-        user.puzzle_solved = upd.rows[0].puzzle_solved;
-        user.puzzle_attempted = upd.rows[0].puzzle_attempted;
+    const payload = { correct: out.correct, autoMove: out.autoMove, finished: out.finished };
+    if (out.rating) {
+      const rt = out.rating;
+      if (rt.userRow) {
+        user.puzzle_rating    = rt.userRow.puzzle_rating;
+        user.puzzle_solved    = rt.userRow.puzzle_solved;
+        user.puzzle_attempted = rt.userRow.puzzle_attempted;
         cacheUser(user);
       }
-      return res.json({ correct, solution: puzzle.solution, ratingDelta, newPuzzleRating: upd.rows[0]?.puzzle_rating ?? user.puzzle_rating ?? 1200, alreadySolved: false });
+      payload.rating = { rated: true, delta: rt.delta, newRating: rt.newRating, rd: rt.rd };
+      // Совместимость со старым клиентом из кэша браузера:
+      payload.ratingDelta = rt.delta;
+      payload.newPuzzleRating = rt.newRating;
     }
-    res.json({ correct: true, solution: puzzle.solution, ratingDelta: 0, newPuzzleRating: user.puzzle_rating || 1200, alreadySolved: true });
+    res.json(payload);
+  } catch(e) { console.error('[Puzzle move]', e.message); res.status(500).json({ error: 'Ошибка' }); }
+});
+
+// Устаревший эндпоинт: раньше клиент присылал список ходов и сам «сообщал»
+// результат (и получал в ответ решение). Теперь он ничего не судит — просто
+// отдаёт итог серверной сессии, чтобы старый клиент из кэша не ломался.
+// Можно удалить через пару дней после выкладки нового app.js.
+app.post('/api/puzzles/:id/attempt', authMiddleware, rateLimit(limiterStrict), async (req, res) => {
+  try {
+    const user = await getUser(req.user.username.toLowerCase());
+    if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+    const sr = puzzleService.getSessionResult(user.id, req.params.id);
+    const rt = sr && sr.rating;
+    res.json({
+      correct: !!(sr && sr.finished),
+      ratingDelta: rt ? rt.delta : 0,
+      newPuzzleRating: rt ? rt.newRating : (user.puzzle_rating || 1200),
+      alreadySolved: !!(sr && sr.finished && !rt),
+    });
   } catch(e) { console.error('[Puzzle attempt]', e.message); res.status(500).json({ error: 'Ошибка' }); }
 });
 
@@ -3847,6 +3830,7 @@ app.get('/api/storm/puzzles', authMiddleware, async (req, res) => {
     const puzzles = r.rows.map(row => {
       const { playerMoves, autoMoves } = parsePuzzleSolution(row.solution);
       run.answers.set(row.id, {
+        fen: row.fen,        // текущая позиция: сервер ведёт её сам (нужна для проверки мата)
         playerMoves,
         autoMoves,
         step: 0,
@@ -3878,14 +3862,19 @@ app.post('/api/storm/move', authMiddleware, rateLimit(limiterStrict), async (req
 
     if (p.done) return res.json({ correct: false, finished: true });
 
-    const stripAnno = (v) => v.replace(/[+#!?]/g, '');
-    const played = stripAnno(uci.toLowerCase().trim());
+    // Ход судит сервер по реальной позиции: совпал с решением ИЛИ ставит мат.
     const expectedRaw = p.playerMoves[p.step];
-    const accepted = (expectedRaw || '').split('|').map(m => stripAnno(m.trim().toLowerCase()));
-
-    const isCorrect = accepted.includes(played)
-      || accepted.some(m => m.length === 4 && played.startsWith(m))
-      || accepted.some(m => m.length === 5 && m.endsWith('q') && played === m.slice(0, 4));
+    const j = puzzleService.judgeSolverMove(p.fen, uci, expectedRaw);
+    let isCorrect, isMate = false, canon = uci.toLowerCase().trim();
+    if (j.fallback) {
+      isCorrect = puzzleService.legacyMatch(uci, expectedRaw);   // chess.js не разобрал FEN
+    } else if (!j.legal) {
+      return res.json({ correct: false, illegal: true });        // невозможный ход — не засчитываем и не штрафуем
+    } else {
+      isCorrect = j.matches || j.mate;
+      isMate = j.mate;
+      canon = j.canon;
+    }
 
     if (!isCorrect) {
       // Ошибка в задаче засчитывается один раз (клиент после неё уходит
@@ -3894,14 +3883,15 @@ app.post('/api/storm/move', authMiddleware, rateLimit(limiterStrict), async (req
       return res.json({ correct: false });
     }
 
-    const canon = accepted.find(m => m === played)
-      || accepted.find(m => m.length === 4 && played.startsWith(m))
-      || accepted.find(m => m.length === 5 && m.endsWith('q') && played === m.slice(0, 4))
-      || played;
     p.step++;
-    const autoMove = p.autoMoves[p.step - 1] || null;
-    const finished = p.step >= p.playerMoves.length;
-    if (finished) { p.done = true; run.solvedCount++; }
+    let autoMove = p.autoMoves[p.step - 1] || null;
+    let finished = isMate || p.step >= p.playerMoves.length;
+    if (!finished && !j.fallback) {
+      const nextFen = autoMove ? puzzleService.applyUci(j.fenAfter, autoMove) : null;
+      if (nextFen) p.fen = nextFen;
+      else { autoMove = null; finished = true; }   // в данных ход соперника невозможен
+    }
+    if (finished) { autoMove = null; p.done = true; run.solvedCount++; }
     return res.json({ correct: true, canon, autoMove, finished });
   } catch(e) { console.error('[Storm move]', e.message); res.status(500).json({ error: 'Ошибка' }); }
 });
