@@ -4411,7 +4411,7 @@ app.get('/game/:gameId', async (req, res) => {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Партия · ${titleWhite} vs ${titleBlack}</title>
-      <link href="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboard2@0.5.0/dist/chessboard2.min.css" rel="stylesheet">
+      <link href="/css/vendor/chessboard2.min.css" rel="stylesheet">
       <style>
         body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
         .container { max-width: 700px; width: 100%; background: #0f0f1e; border-radius: 20px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
@@ -4448,7 +4448,7 @@ app.get('/game/:gameId', async (req, res) => {
       </div>
 
       <script src="/js/vendor/chess.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboard2@0.5.0/dist/chessboard2.min.js"></script>
+      <script src="/js/vendor/chessboard2.min.js"></script>
       <script>
         const moves = ${movesJson};
         const gameId = ${jsonForInline(gameId)};
@@ -4554,7 +4554,7 @@ app.get('/game/:gameId', async (req, res) => {
         window.addEventListener('DOMContentLoaded', () => {
           try {
             if (typeof Chessboard2 !== 'undefined') {
-              board = Chessboard2('board', { position: 'start', draggable: false });
+              board = Chessboard2('board', { position: 'start', draggable: false, pieceTheme: '/img/pieces/{piece}.svg' });
             } else {
               document.getElementById('board').innerHTML = '<div style="text-align:center;color:#aaa;padding:20px">Доска недоступна (ошибка загрузки библиотеки), но ходы и PGN доступны</div>';
             }
