@@ -271,6 +271,8 @@ app.get('/opening-database', (req, res) => res.sendFile(path.join(__dirname, '..
 
 
 app.get('/blog',    (req, res) => res.sendFile(path.join(__dirname, '../public/blog.html')));
+app.get('/vs-computer',    (req, res) => res.sendFile(path.join(__dirname, '../public/vs-computer.html')));
+
 
 app.get('/blog/:id',(req, res) => {
   const post = blogPosts.find(p => p.id === req.params.id);

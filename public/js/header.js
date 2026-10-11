@@ -18,8 +18,15 @@
   // header.js подключается на КАЖДОЙ странице сайта, поэтому сам гарантирует
   // наличие /js/i18n.js — странице не нужно помнить о нём отдельно. Если
   // i18n.js уже подключён (как в settings.html) — просто дожидаемся его.
+  // Запасные подписи для ключей, которых ещё нет в словарях /js/i18n.js
+  // (пока ключ не добавлен в словарь — показываем русский текст вместо «header.xxx»).
+  const I18N_FALLBACK = {
+    'header.nav_vs_computer': 'Игра с компьютером',
+  };
   function t(key, vars) {
-    return (window.CH_I18N && window.CH_I18N.t) ? window.CH_I18N.t(key, vars) : key;
+    const r = (window.CH_I18N && window.CH_I18N.t) ? window.CH_I18N.t(key, vars) : key;
+    if ((!r || r === key) && I18N_FALLBACK[key]) return I18N_FALLBACK[key];
+    return r;
   }
   function _ensureI18nReady() {
     return new Promise(resolve => {
@@ -50,6 +57,7 @@
       i18nLabel: 'header.sec_play',
       items: [
         { id: 'lobby',       i18nLabel: 'header.nav_play',   icon: '⚔️',  href: '/lobby' },
+        { id: 'vs-computer', i18nLabel: 'header.nav_vs_computer', icon: '🖥️', href: '/vs-computer.html', spa: false },
         { id: 'tournaments', i18nLabel: 'header.nav_tournaments',  icon: '🏆',  href: '/tournaments', spa: false },
         { id: 'club-tournaments', i18nLabel: 'header.nav_club_tournaments', icon: '🏰', href: '/interclub-tournaments.html', spa: false },
       ]
@@ -107,10 +115,21 @@
     { id: 'more',     i18nLabel: 'header.nav_more',     icon: '☰',  href: null, action: 'drawer' },
   ];
 
+  // Подсветка активного пункта меню по адресу страницы (для отдельных .html-страниц,
+  // которые не вызывают CH.setActivePage сами). Сравниваем без «.html» и без слэша в конце.
+  function _detectActivePage() {
+    try {
+      const norm = p => (p || '/').replace(/\/+$/, '').replace(/\.html$/, '') || '/';
+      const cur = norm(location.pathname);
+      for (const sec of NAV) for (const it of sec.items) if (it.href && norm(it.href) === cur) return it.id;
+    } catch (e) {}
+    return null;
+  }
+
   // ─── STATE ────────────────────────────────────────────────────────────────
   const _s = {
     currentUser: null,
-    activePage: null,
+    activePage: _detectActivePage(),
     onlineCount: 0,
     unreadCount: 0,
     unreadPollTimer: null,
