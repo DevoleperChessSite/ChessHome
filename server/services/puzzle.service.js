@@ -179,6 +179,18 @@ function ensureSchema() {
       await db('ALTER TABLE puzzles ADD COLUMN IF NOT EXISTS rating_rd       double precision');
       await db('ALTER TABLE puzzles ADD COLUMN IF NOT EXISTS rating_vol      double precision');
       await db('ALTER TABLE puzzles ADD COLUMN IF NOT EXISTS rating_at       bigint');
+
+      // Какой системой набран рейтинг: 1 = старая (+15/−10), 2 = Glicko-2.
+      // У новых пользователей по умолчанию 2. Один раз, при создании колонки,
+      // всем, кто уже решал задачи, ставим 1 — им в таблице лидеров покажется
+      // «OLD Rating System», пока они сами не сбросят рейтинг.
+      const had = await db(
+        `SELECT 1 FROM information_schema.columns
+          WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'puzzle_rating_system'`);
+      await db('ALTER TABLE users ADD COLUMN IF NOT EXISTS puzzle_rating_system smallint NOT NULL DEFAULT 2');
+      if (!had.rows.length) {
+        await db('UPDATE users SET puzzle_rating_system = 1 WHERE COALESCE(puzzle_attempted, 0) > 0');
+      }
     })().catch((e) => {
       schemaPromise = null; // повторим при следующем обращении
       console.error('[PuzzleService] ensureSchema:', e.message);
@@ -429,6 +441,36 @@ async function handleMove(userId, puzzle, uciRaw, moveIndexHint) {
   return { status: 'ok', correct: true, finished: true, autoMove: null, rating };
 }
 
+// Можно ли пользователю показать кнопку «Сбросить старый рейтинг».
+async function getRatingStatus(userId) {
+  await ensureSchema();
+  const { db } = D();
+  const r = await db('SELECT puzzle_rating, puzzle_rating_system FROM users WHERE id = $1', [userId]);
+  const row = r.rows[0];
+  if (!row) return null;
+  return {
+    canReset: Number(row.puzzle_rating_system) === 1,
+    rating: row.puzzle_rating != null ? Number(row.puzzle_rating) : USER_START_RATING,
+  };
+}
+
+// Сброс старого рейтинга: начинаем с 1200 и «свежей» неопределённостью по Glicko-2.
+// Решённые задачи и счётчики остаются. Одноразово: после сброса флаг = 2.
+// null — сбрасывать нечего (уже сбрасывал / не играл по старой системе).
+async function resetRating(userId) {
+  await ensureSchema();
+  const { db } = D();
+  const r = await db(
+    `UPDATE users SET
+       puzzle_rating = $1, puzzle_glicko = $2, puzzle_rd = $3, puzzle_vol = $4,
+       puzzle_rated_at = NULL, puzzle_rating_system = 2
+     WHERE id = $5 AND puzzle_rating_system = 1
+     RETURNING puzzle_rating, puzzle_solved, puzzle_attempted`,
+    [USER_START_RATING, USER_START_RATING, USER_START_RD, DEFAULT_VOL, userId]
+  );
+  return r.rows[0] || null;
+}
+
 // Итог последней сессии (для старых клиентов, которые зовут /attempt).
 function getSessionResult(userId, puzzleId) {
   const s = sessions.get(keyOf(userId, puzzleId));
@@ -441,6 +483,8 @@ module.exports = {
   startSession,
   handleMove,
   getSessionResult,
+  getRatingStatus,
+  resetRating,
   judgeSolverMove,
   applyUci,
   legacyMatch,

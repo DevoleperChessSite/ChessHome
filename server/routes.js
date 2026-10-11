@@ -3492,9 +3492,11 @@ app.get('/api/users/:username/clubs', (req, res) => {
 
 app.get('/api/puzzles/leaderboard', async (req, res) => {
   try {
-    const r = await db(`SELECT username,puzzle_rating,puzzle_solved,puzzle_attempted,role FROM users WHERE puzzle_attempted > 0 ORDER BY puzzle_rating DESC LIMIT 50`);
+    await puzzleService.ensureSchema();
+    const r = await db(`SELECT username,puzzle_rating,puzzle_solved,puzzle_attempted,puzzle_rating_system,role FROM users WHERE puzzle_attempted > 0 ORDER BY puzzle_rating DESC LIMIT 50`);
     res.json(r.rows.map((row,i) => ({
       rank: i+1, username: row.username,
+      oldSystem: Number(row.puzzle_rating_system) === 1,   // рейтинг набран по старой системе, ещё не сброшен
       puzzleRating: row.puzzle_rating||1200,
       puzzleSolved: row.puzzle_solved||0,
       puzzleAttempted: row.puzzle_attempted||0,
@@ -3726,6 +3728,31 @@ app.get('/api/puzzles/:id', async (req, res) => {
 // Позицию, шаг и результат ведёт сервер (сессия «пользователь + задача»).
 // Клиент шлёт только ход. Мат засчитывается всегда. Рейтинг — Glicko-2,
 // один раз за первую попытку. Подробности: services/puzzle.service.js.
+// Показывать ли кнопку «Сбросить старый рейтинг» (только тем, кто ещё на старой системе).
+app.get('/api/puzzles/rating/status', authMiddleware, async (req, res) => {
+  try {
+    const user = await getUser(req.user.username.toLowerCase());
+    if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+    const st = await puzzleService.getRatingStatus(user.id);
+    res.json({ canReset: !!(st && st.canReset), rating: st ? st.rating : 1200 });
+  } catch(e) { console.error('[Puzzle rating status]', e.message); res.status(500).json({ error: 'Ошибка' }); }
+});
+
+// Одноразовый сброс старого рейтинга: дальше игрок живёт по Glicko-2 и с 1200.
+app.post('/api/puzzles/rating/reset', authMiddleware, rateLimit(limiterStrict), async (req, res) => {
+  try {
+    const user = await getUser(req.user.username.toLowerCase());
+    if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+    const row = await puzzleService.resetRating(user.id);
+    if (!row) return res.json({ ok: true, alreadyReset: true, rating: user.puzzle_rating || 1200 });
+    user.puzzle_rating    = row.puzzle_rating;
+    user.puzzle_solved    = row.puzzle_solved;
+    user.puzzle_attempted = row.puzzle_attempted;
+    cacheUser(user);
+    res.json({ ok: true, alreadyReset: false, rating: row.puzzle_rating });
+  } catch(e) { console.error('[Puzzle rating reset]', e.message); res.status(500).json({ error: 'Ошибка' }); }
+});
+
 app.post('/api/puzzles/:id/start', authMiddleware, rateLimit(limiterStrict), async (req, res) => {
   try {
     const r = await db('SELECT id, fen, solution FROM puzzles WHERE id=$1', [req.params.id]);
