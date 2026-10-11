@@ -3798,4 +3798,169 @@ function applyFaqFilters(query) {
 })();
 </script>
 
+
+<script>
+// ══════════════════════════════════════════════════════════
+// FAQ: раскрытие ответов
+// ══════════════════════════════════════════════════════════
+function toggleFaq(btn) {
+  const item = btn.closest('.faq-item');
+  if (item) item.classList.toggle('open');
+}
+
+// ══════════════════════════════════════════════════════════
+// АПЕЛЛЯЦИЯ / ОБРАЩЕНИЯ — пользователь и админ
+// Маршруты сервера (routes.js):
+//   POST /appeals, GET /appeals/mine, POST /appeals/:id/reply
+//   GET /admin/appeals?status=, GET /admin/appeals/:id,
+//   POST /admin/appeals/:id/reply, PATCH /admin/appeals/:id {status}
+// Статусы: status = open|closed, awaiting = admin|user
+// ══════════════════════════════════════════════════════════
+(function () {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const REASONS = { ban:'🚫 Обжалование бана', cheater:'🤖 Проиграл читеру', rating:'📈 Вопрос по рейтингу', other:'❓ Другое' };
+  const say = (m, t) => (typeof toast === 'function' ? toast(m, t) : alert(m));
+  const fmt = ts => ts ? new Date(ts).toLocaleString() : '';
+
+  function pill(a, adminView) {
+    if (a.status === 'closed') return '<span class="appeal-status-pill st-closed">🔒 Закрыто</span>';
+    if (a.awaiting === 'admin') return '<span class="appeal-status-pill st-wait-admin">' + (adminView ? '⏳ Ждёт ответа админа' : '⏳ Ожидает ответа администрации') + '</span>';
+    return '<span class="appeal-status-pill st-wait-user">' + (adminView ? '💬 Ждём пользователя' : '💬 Ответ получен — ваш ход') + '</span>';
+  }
+  function msgHtml(m, adminView) {
+    const mine = adminView ? m.isAdmin : !m.isAdmin;
+    const who = m.isAdmin ? 'Администрация' + (adminView ? ' (' + esc(m.author) + ')' : '') : (adminView ? esc(m.author) : 'Вы');
+    // в админке сообщения админа справа, пользователя слева
+    const cls = mine ? 'from-user' : 'from-admin';
+    return `<div class="appeal-msg ${cls}"><div class="appeal-msg-meta">${who} · ${fmt(m.createdAt)}</div>${esc(m.message)}</div>`;
+  }
+
+  // ─────────── Пользователь ───────────
+  function renderMine(list) {
+    const box = $('appeal-mine-list');
+    if ($('appeal-mine-count')) $('appeal-mine-count').textContent = list.length ? '(' + list.length + ')' : '';
+    if (!list.length) { box.innerHTML = '<div class="empty-state">Обращений пока нет</div>'; return; }
+    box.innerHTML = list.map((a, i) => {
+      const msgs = a.messages.map(m => msgHtml(m, false)).join('');
+      let reply;
+      if (a.status === 'closed') reply = '<div class="appeal-locked-note">Обращение закрыто администратором</div>';
+      else if (a.awaiting === 'admin') reply = '<div class="appeal-locked-note">Дождитесь ответа администратора, прежде чем писать снова</div>';
+      else reply = `<div class="appeal-reply-box">
+          <textarea id="appeal-reply-${esc(a.id)}" maxlength="1000" placeholder="Ваш ответ..."></textarea>
+          <button class="btn btn-primary" onclick="replyAppeal('${esc(a.id)}')">Отправить</button></div>`;
+      const open = (i === 0 && a.status === 'open') ? ' open' : '';
+      return `<div class="appeal-item${open}">
+        <button class="appeal-item-head" onclick="this.parentElement.classList.toggle('open')">
+          <span class="appeal-item-head-left"><span class="appeal-item-reason">${REASONS[a.reason] || esc(a.reason)}</span>
+          <span class="appeal-item-date">${fmt(a.createdAt)}</span></span>${pill(a, false)}</button>
+        <div class="appeal-item-body"><div class="appeal-thread">${msgs}${reply}</div></div></div>`;
+    }).join('');
+  }
+
+  window.loadMyAppeals = async function () {
+    const authBox = $('appeal-auth-required'), content = $('appeal-content');
+    if (!authBox || !content) return;
+    let me = null;
+    try { me = await apiGet('/me'); } catch (e) {}
+    authBox.style.display = me ? 'none' : '';
+    content.style.display = me ? '' : 'none';
+    if (!me) return;
+    try {
+      const list = await apiGet('/appeals/mine');
+      renderMine(list);
+      const hasOpen = list.some(a => a.status === 'open');
+      $('appeal-new-wrap').style.display = hasOpen ? 'none' : '';
+      $('appeal-open-notice').style.display = hasOpen ? '' : 'none';
+    } catch (e) {
+      $('appeal-mine-list').innerHTML = '<div class="empty-state" style="color:var(--red)">' + esc(e.message) + '</div>';
+    }
+  };
+
+  window.submitAppeal = async function () {
+    const reason = $('appeal-reason-select').value;
+    const message = $('appeal-new-message').value.trim();
+    if (!message) { say('Напишите сообщение', 'error'); return; }
+    const btn = $('appeal-submit-btn'); btn.disabled = true;
+    try {
+      await apiPost('/appeals', { reason, message });
+      $('appeal-new-message').value = '';
+      say('Обращение отправлено', 'success');
+    } catch (e) { say(e.message, 'error'); }
+    finally { btn.disabled = false; window.loadMyAppeals(); }
+  };
+
+  window.replyAppeal = async function (id) {
+    const ta = document.getElementById('appeal-reply-' + id);
+    const message = ta && ta.value.trim();
+    if (!message) { say('Напишите сообщение', 'error'); return; }
+    try { await apiPost('/appeals/' + encodeURIComponent(id) + '/reply', { message }); } catch (e) { say(e.message, 'error'); }
+    window.loadMyAppeals();
+  };
+
+  window.goToAppealPage = function () {
+    if (typeof showPage === 'function') showPage('appeal'); else location.href = '/appeal';
+  };
+
+  // ─────────── Админ ───────────
+  let currentAppealId = null;
+
+  window.loadAdminAppeals = async function (status) {
+    if (status === undefined) status = 'open';
+    const list = $('admin-appeals-list');
+    list.innerHTML = '<div class="spinner" style="margin:0 auto"></div>';
+    try {
+      const arr = await apiGet('/admin/appeals' + (status ? '?status=' + status : ''));
+      if ($('admin-appeals-count')) $('admin-appeals-count').textContent = '(' + arr.length + ')';
+      if (!arr.length) { list.innerHTML = '<div class="empty-state">Обращений нет 🎉</div>'; return; }
+      list.innerHTML = arr.map(a => `<div class="admin-appeal-row" onclick="openAdminAppeal('${esc(a.id)}')">
+        <span class="aa-user">${esc(a.username)}</span>
+        <span class="aa-reason">${REASONS[a.reason] || esc(a.reason)}</span>
+        ${pill(a, true)}
+        <span class="aa-date">${fmt(a.updatedAt)}</span></div>`).join('');
+    } catch (e) { list.innerHTML = '<div style="color:var(--red)">' + esc(e.message) + '</div>'; }
+  };
+
+  window.openAdminAppeal = async function (id) {
+    currentAppealId = id;
+    $('appeal-detail-thread').innerHTML = '<div class="empty-state"><div class="spinner" style="margin:0 auto"></div></div>';
+    $('appeal-detail-reply-input').value = '';
+    openModal('modal-appeal-detail');
+    try {
+      const a = await apiGet('/admin/appeals/' + encodeURIComponent(id));
+      $('appeal-detail-title').textContent = 'Обращение от ' + a.username;
+      $('appeal-detail-sub').innerHTML = (REASONS[a.reason] || esc(a.reason)) + ' · ' + fmt(a.createdAt) + ' · ' + pill(a, true);
+      const th = $('appeal-detail-thread');
+      th.innerHTML = a.messages.map(m => msgHtml(m, true)).join('');
+      th.scrollTop = th.scrollHeight;
+      const closed = a.status === 'closed';
+      $('appeal-detail-closed-note').style.display = closed ? '' : 'none';
+      document.querySelector('#modal-appeal-detail .appeal-reply-box').style.display = closed ? 'none' : '';
+      $('appeal-detail-close-btn').style.display = closed ? 'none' : '';
+      $('appeal-detail-reopen-btn').style.display = closed ? '' : 'none';
+    } catch (e) { $('appeal-detail-thread').innerHTML = '<div style="color:var(--red)">' + esc(e.message) + '</div>'; }
+  };
+
+  window.adminReplyAppeal = async function () {
+    const message = $('appeal-detail-reply-input').value.trim();
+    if (!message || !currentAppealId) return;
+    const btn = $('appeal-detail-reply-btn'); btn.disabled = true;
+    try {
+      await apiPost('/admin/appeals/' + encodeURIComponent(currentAppealId) + '/reply', { message });
+      await window.openAdminAppeal(currentAppealId);
+      window.loadAdminAppeals('open');
+    } catch (e) { say(e.message, 'error'); }
+    finally { btn.disabled = false; }
+  };
+
+  window.setAppealStatus = async function (status) {
+    if (!currentAppealId) return;
+    try {
+      await apiPatch('/admin/appeals/' + encodeURIComponent(currentAppealId), { status });
+      await window.openAdminAppeal(currentAppealId);
+      window.loadAdminAppeals('open');
+    } catch (e) { say(e.message, 'error'); }
+  };
+})();
+</script>
 </body>

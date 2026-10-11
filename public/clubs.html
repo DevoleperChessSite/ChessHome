@@ -262,17 +262,18 @@
     }
 
     /* ── CREATE MODAL ── */
-    .modal-overlay {
+    .cm-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.6);
       display: flex; align-items: center; justify-content: center;
-      z-index: 1000; padding: 20px;
+      z-index: 100000; padding: 20px;
+      opacity: 1; visibility: visible; pointer-events: auto;
     }
-    .modal-box {
+    .cm-box {
       background: var(--bg-card); border: 1px solid var(--border);
       border-radius: 16px; padding: 28px; max-width: 480px; width: 100%;
       max-height: 90vh; overflow-y: auto;
     }
-    .modal-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 20px; }
+    .cm-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 20px; }
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
     .form-group input, .form-group textarea {
@@ -591,8 +592,8 @@
 
 
 <!-- ── CREATE MODAL ── -->
-<div class="modal-overlay" id="create-modal" style="display:none" onclick="if(event.target===this)closeCreateModal()">
-  <div class="modal-box">
+<div class="cm-overlay" id="create-modal" style="display:none" onclick="if(event.target===this)closeCreateModal()">
+  <div class="cm-box">
     <h2 data-i18n="clubs.create_modal_title">🛡️ Create a club</h2>
     <div class="form-group">
       <label data-i18n="clubs.name_label">Club name *</label>
@@ -607,7 +608,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost btn-sm" data-i18n="clubs.cancel_btn" onclick="closeCreateModal()">Cancel</button>
-      <button class="btn btn-primary btn-sm" data-i18n="clubs.create_submit_btn" onclick="createClub()">Create</button>
+      <button class="btn btn-primary btn-sm" id="create-submit-btn" data-i18n="clubs.create_submit_btn" onclick="createClub()">Create</button>
     </div>
   </div>
 </div>
@@ -1034,6 +1035,8 @@ async function createClub() {
   const name = document.getElementById('new-club-name').value.trim();
   const description = document.getElementById('new-club-desc').value.trim();
   if (!name) { toast(CH_I18N.t('clubs.error.enter_name'), 'error'); return; }
+  const submitBtn = document.getElementById('create-submit-btn');
+  if (submitBtn) { if (submitBtn.disabled) return; submitBtn.disabled = true; }
   try {
     const club = await apiPost('/clubs', { name, description });
     toast(CH_I18N.t('clubs.toast.club_created'), 'success');
@@ -1041,6 +1044,7 @@ async function createClub() {
     await loadClubs();
     openClub(club.id);
   } catch(e) { toast(e.message, 'error'); }
+  finally { if (submitBtn) submitBtn.disabled = false; }
 }
 
 // ── Club Chat ──────────────────────────────────────────────────
