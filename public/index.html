@@ -2547,6 +2547,15 @@
 <div class="modal-overlay" id="modal-register">
   <div class="modal" style="position:relative">
     <button class="modal-close" onclick="closeModal('modal-register')">✕</button>
+    <div id="reg-loading" role="status" aria-live="polite" aria-hidden="true">
+      <div class="reg-loader">
+        <div class="reg-loader-ring"></div>
+        <div class="reg-loader-piece">♞&#xFE0E;</div>
+      </div>
+      <div class="reg-loading-title"></div>
+      <div class="reg-progress"><i></i></div>
+      <div class="reg-loading-hint"></div>
+    </div>
     <h2>♟ Регистрация</h2>
     <form onsubmit="handleRegister(event)">
       <div class="form-group">
@@ -2915,7 +2924,13 @@
 
   function resize() {
     if (!canvas) return;
-    size = getSize();
+    const s = getSize();
+    // Главная — одна из SPA-секций (.page). Если страницу открыли сразу на /lobby,
+    // /game и т.п., блок доски скрыт и его размер 0 — ничего не трогаем,
+    // ResizeObserver (см. init) вызовет resize() снова, когда блок станет видимым.
+    if (!s) return;
+    if (s === size && canvas.width === s) return;
+    size = s;
     canvas.width  = size;
     canvas.height = size;
     sqSize = size / 8;
@@ -2929,7 +2944,7 @@
   }
 
   function drawBoard(anim) {
-    if (!ctx) return;
+    if (!ctx || !sqSize) return;
     ctx.save();
     ctx.globalAlpha = boardFadeAlpha;
 
@@ -3087,6 +3102,7 @@
 
   function tick(now) {
     animRAF = requestAnimationFrame(tick);
+    if (!sqSize) { resize(); return; }   // блок ещё скрыт/не имеет размера
 
     // Мобильный троттлинг: пропускаем кадр, если не набежало нужное
     // время (~30fps вместо 60) или блок сейчас не виден на экране/
@@ -3201,9 +3217,11 @@
     if (!canvas) return;
     ctx = canvas.getContext('2d');
     size = getSize();
-    canvas.width  = size;
-    canvas.height = size;
-    sqSize = size / 8;
+    if (size) {
+      canvas.width  = size;
+      canvas.height = size;
+      sqSize = size / 8;
+    }
     canvas.style.width  = '100%';
     canvas.style.height = '100%';
     canvas.style.display = 'block';
@@ -3214,6 +3232,9 @@
     lastTime = performance.now();
     animRAF = requestAnimationFrame(tick);
     window.addEventListener('resize', resize, { passive: true });
+    // Блок мог быть скрыт при старте (SPA) — перерисовываем, когда его размер появится/изменится
+    const heroWrap = document.getElementById('hero-board');
+    if (heroWrap && 'ResizeObserver' in window) new ResizeObserver(resize).observe(heroWrap);
 
     // На мобиле дальше по странице (features/modes/чат и т.д.) блок
     // с доской уходит за экран, а цикл tick() всё равно продолжал бы
@@ -3230,12 +3251,15 @@
 
   // Init after page load — preload SVG images first
   function startWhenReady() {
-    preloadImages(function() {
-      init();
-    });
+    let started = false;
+    const go = () => { if (started) return; started = true; init(); };
+    preloadImages(go);
+    // Если картинки не пришли за 3 с — стартуем без них: tick рисует каждый кадр,
+    // фигуры появятся сразу, как только догрузятся.
+    setTimeout(go, 3000);
   }
-  if (document.readyState === 'complete') { setTimeout(startWhenReady, 50); }
-  else { window.addEventListener('load', () => setTimeout(startWhenReady, 50)); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startWhenReady);
+  else startWhenReady();
 })();
 </script>
 
@@ -3467,6 +3491,59 @@
   top: 0;
   margin-bottom: 0;
 }
+
+/* ── Анимация загрузки при регистрации ───────────────────── */
+#reg-loading {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; padding: 24px; text-align: center;
+  border-radius: inherit;
+  background: rgba(14, 16, 20, .92);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .25s ease, visibility 0s linear .25s;
+}
+#reg-loading.is-on {
+  opacity: 1; visibility: visible; pointer-events: auto;
+  transition: opacity .25s ease;
+}
+.reg-loader { position: relative; width: 84px; height: 84px; }
+.reg-loader-ring {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 25%, var(--accent, #d4af37) 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation: regSpin 1.1s linear infinite;
+}
+.reg-loader-piece {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px; line-height: 1; color: var(--accent, #d4af37);
+  animation: regBob 1.6s ease-in-out infinite;
+}
+.reg-loading-title {
+  min-height: 24px; font-size: 17px; font-weight: 600;
+  transition: opacity .22s ease, transform .22s ease;
+}
+.reg-loading-title.is-fading { opacity: 0; transform: translateY(4px); }
+.reg-progress {
+  width: min(240px, 80%); height: 4px; border-radius: 99px;
+  background: rgba(255, 255, 255, .1); overflow: hidden;
+}
+.reg-progress > i {
+  display: block; height: 100%; width: 0; border-radius: inherit;
+  background: linear-gradient(90deg, rgba(212, 175, 55, .45), var(--accent, #d4af37));
+  transition: width .9s ease;
+}
+.reg-loading-hint { min-height: 16px; font-size: 12px; color: var(--text-secondary, #a0a0b0); }
+#reg-loading.is-done .reg-loader-ring { animation: none; background: var(--accent, #d4af37); }
+#reg-loading.is-done .reg-loader-piece { animation: none; color: #0e1014; font-size: 40px; font-weight: 700; }
+@keyframes regSpin { to { transform: rotate(360deg); } }
+@keyframes regBob { 0%, 100% { transform: translateY(2px); } 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .reg-loader-ring, .reg-loader-piece { animation: none; }
+  .reg-progress > i, .reg-loading-title { transition: none; }
+}
 </style>
 
 <script>
@@ -3481,6 +3558,158 @@ function updateRegisterButtonState() {
   btn.style.opacity = allChecked ? '1' : '0.5';
   btn.style.cursor = allChecked ? 'pointer' : 'not-allowed';
 }
+
+// ── АНИМАЦИЯ ЗАГРУЗКИ ПРИ РЕГИСТРАЦИИ ─────────────────────
+// Показывается поверх формы, пока идёт запрос POST /api/register:
+// крутящееся кольцо, смена статусов и полоса прогресса. Код регистрации
+// (handleRegister) не затрагивается — мы только «слушаем» fetch/XHR.
+(function () {
+  const modal = document.getElementById('modal-register');
+  const form  = modal && modal.querySelector('form');
+  const box   = document.getElementById('reg-loading');
+  if (!modal || !form || !box) return;
+
+  const titleEl = box.querySelector('.reg-loading-title');
+  const barEl   = box.querySelector('.reg-progress > i');
+  const hintEl  = box.querySelector('.reg-loading-hint');
+  const pieceEl = box.querySelector('.reg-loader-piece');
+  const errEl   = document.getElementById('reg-error');
+
+  const TEXT = {
+    ru: {
+      steps: ['Создаю профиль…', 'Проверяю данные…', 'Защищаю пароль…', 'Обновляю базу данных…', 'Настраиваю рейтинг…', 'Почти готово…'],
+      slow: 'Сервер отвечает дольше обычного — подождите ещё немного',
+      done: 'Аккаунт создан!',
+    },
+    en: {
+      steps: ['Creating your profile…', 'Checking your details…', 'Securing your password…', 'Updating the database…', 'Setting up your rating…', 'Almost there…'],
+      slow: 'The server is taking longer than usual — hang tight',
+      done: 'Account created!',
+    },
+  };
+  const t = () => TEXT[(document.documentElement.lang || 'ru').slice(0, 2)] || TEXT.ru;
+
+  const SHOW_DELAY = 300;     // быстрые ответы/отказы — без «вспышки» оверлея
+  const STEP_MS    = 1800;    // как часто меняется статус
+  const SLOW_MS    = 12000;   // через сколько показать «дольше обычного»
+  const MAX_MS     = 40000;   // страховка: оверлей не может висеть бесконечно
+  const KNIGHT     = '♞\uFE0E';
+
+  let armed = false;          // форма отправлена, ждём запрос к /api/register
+  let active = false;         // запрос в полёте
+  let shown = false;
+  let step = 0;
+  let timers = [];
+  let interval = null;
+  const later = (fn, ms) => { const id = setTimeout(fn, ms); timers.push(id); return id; };
+
+  function setStep(i, instant) {
+    const steps = t().steps;
+    barEl.style.width = Math.round(((i + 1) / steps.length) * 88) + '%';
+    if (instant) { titleEl.textContent = steps[i]; return; }
+    titleEl.classList.add('is-fading');
+    later(() => { titleEl.textContent = steps[i]; titleEl.classList.remove('is-fading'); }, 220);
+  }
+
+  function show() {
+    if (!active || shown) return;
+    shown = true;
+    pieceEl.textContent = KNIGHT;
+    box.classList.remove('is-done');
+    hintEl.textContent = '';
+    step = 0;
+    setStep(0, true);
+    box.setAttribute('aria-hidden', 'false');
+    box.classList.add('is-on');
+    interval = setInterval(() => {
+      if (step < t().steps.length - 1) { step++; setStep(step); }
+    }, STEP_MS);
+    later(() => { hintEl.textContent = t().slow; }, SLOW_MS);
+  }
+
+  function reset() {
+    armed = false; active = false; shown = false;
+    timers.forEach(clearTimeout); timers = [];
+    clearInterval(interval); interval = null;
+    box.classList.remove('is-on');
+    box.setAttribute('aria-hidden', 'true');
+    setTimeout(() => {              // вернуть исходное состояние после затухания
+      if (active) return;
+      box.classList.remove('is-done');
+      barEl.style.width = '0%';
+      hintEl.textContent = '';
+      pieceEl.textContent = KNIGHT;
+    }, 350);
+  }
+
+  function start() {
+    armed = false; active = true; shown = false;
+    later(show, SHOW_DELAY);
+    later(() => { if (active) reset(); }, MAX_MS);
+  }
+
+  function finish(ok) {
+    if (!active) return;
+    if (!ok || !shown) { reset(); return; }   // ошибка → сразу вернуть форму с текстом ошибки
+    // успех: короткое «готово», дальше handleRegister сам закроет окно
+    timers.forEach(clearTimeout); timers = [];
+    clearInterval(interval); interval = null;
+    box.classList.add('is-done');
+    pieceEl.textContent = '✓';
+    titleEl.classList.remove('is-fading');
+    titleEl.textContent = t().done;
+    barEl.style.width = '100%';
+    hintEl.textContent = '';
+    later(reset, 900);
+  }
+
+  const isReg = u => /\/api\/register(?:[/?#]|$)/.test(String(u || ''));
+
+  // Отправка формы: взводим «арм», блокируем двойную отправку
+  form.addEventListener('submit', function (e) {
+    if (active) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+    armed = true;
+    setTimeout(() => { armed = false; }, 3000);   // не дождались запроса (локальная валидация) — оверлей не нужен
+  }, true);
+
+  // Ловим сам запрос регистрации — fetch…
+  const origFetch = window.fetch;
+  if (typeof origFetch === 'function') {
+    window.fetch = function (input) {
+      const p = origFetch.apply(this, arguments);
+      try {
+        const url = typeof input === 'string' ? input : (input && input.url);
+        if (isReg(url) && (armed || active)) {
+          if (!active) start();
+          p.then(r => finish(r.ok), () => finish(false));
+        }
+      } catch (_) { /* анимация не должна ломать запрос */ }
+      return p;
+    };
+  }
+  // …и XMLHttpRequest (на случай, если api.js работает через него)
+  if (window.XMLHttpRequest) {
+    const xo = XMLHttpRequest.prototype.open, xs = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function (m, url) { this._regUrl = url; return xo.apply(this, arguments); };
+    XMLHttpRequest.prototype.send = function () {
+      try {
+        if (isReg(this._regUrl) && (armed || active)) {
+          if (!active) start();
+          this.addEventListener('loadend', () => finish(this.status >= 200 && this.status < 300));
+        }
+      } catch (_) {}
+      return xs.apply(this, arguments);
+    };
+  }
+
+  // Страховки: появился текст ошибки или окно регистрации закрыли/изменили
+  if (window.MutationObserver) {
+    if (errEl) new MutationObserver(() => { if (active && errEl.textContent.trim()) reset(); })
+      .observe(errEl, { childList: true, characterData: true, subtree: true });
+    new MutationObserver(() => { if (active) reset(); })
+      .observe(modal, { attributes: true, attributeFilter: ['class', 'style'] });
+  }
+})();
 
 // ── ЛОГИКА ОНБОРДИНГА ───────────────────────────────────
 (function() {
