@@ -33,7 +33,16 @@ const { Server } = require('socket.io');
 // экономит заметно, особенно под 100 одновременных клиентов.
 const compression = require('compression');
 
-const bcrypt  = require('bcryptjs');
+// Нативный bcrypt считает хеш в пуле потоков libuv и НЕ блокирует event loop.
+// bcryptjs — чистый JS: каждый hash/compare занимает единственный поток на десятки мс
+// (часы партий и сокеты в это время стоят). Если bcrypt не установлен — работаем на bcryptjs.
+let bcrypt;
+try {
+  bcrypt = require('bcrypt');
+} catch (_) {
+  bcrypt = require('bcryptjs');
+  console.warn('⚠️  Пакет bcrypt не установлен — используется bcryptjs (блокирует event loop). Установите: npm i bcrypt');
+}
 
 const jwt     = require('jsonwebtoken');
 
@@ -1799,6 +1808,22 @@ async function emitToAdmins(event, payload) {
 const limiterSocketConnect = new RateLimiter(60_000, 200);
 
 
+// ── Мониторинг: задержка event loop и очередь на соединение с БД ──────────
+// Пишет в лог ТОЛЬКО при проблеме: p99 задержки цикла > 50 мс или запросы ждут
+// свободного соединения из пула.
+const { monitorEventLoopDelay } = require('perf_hooks');
+const loopDelay = monitorEventLoopDelay({ resolution: 20 });
+loopDelay.enable();
+setInterval(() => {
+  const p99 = loopDelay.percentile(99) / 1e6;
+  const max = loopDelay.max / 1e6;
+  if (p99 > 50 || pool.waitingCount > 0) {
+    console.warn(`[perf] event loop p99=${p99.toFixed(0)}ms max=${max.toFixed(0)}ms | pool total=${pool.totalCount} idle=${pool.idleCount} waiting=${pool.waitingCount}`);
+  }
+  loopDelay.reset();
+}, 30000).unref();
+
+
 async function main() {
   if (!JWT_SECRET || typeof JWT_SECRET !== 'string' || JWT_SECRET.length < 32 || /change_me|changeme|secret$/i.test(JWT_SECRET)) {
     console.error('❌ FATAL: JWT_SECRET не задан/слишком короткий/дефолтный. Сгенерируйте сильный секрет и укажите его в .env:');
@@ -1809,6 +1834,19 @@ async function main() {
   console.log('🐘 Подключение к PostgreSQL...');
   await pool.query('SELECT 1');
   console.log('✅ PostgreSQL подключён');
+
+  // Индексы под частые запросы (профиль/история партий, статистика, проверка регистраций).
+  // IF NOT EXISTS — безопасно при повторных запусках. Если подобный индекс уже есть
+  // под другим именем, получится лишний, но безвредный дубликат.
+  for (const sql of [
+    'CREATE INDEX IF NOT EXISTS idx_games_white_ended ON games (white, ended_at DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_games_black_ended ON games (black, ended_at DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_games_ended_at ON games (ended_at)',
+    'CREATE INDEX IF NOT EXISTS idx_users_created_ip ON users (created_from_ip)',
+    'CREATE INDEX IF NOT EXISTS idx_users_created_device ON users (created_device_id)',
+  ]) {
+    await pool.query(sql).catch(e => console.warn('[index]', e.message));
+  }
 
   await loadBansFromDB();
   await loadChat();

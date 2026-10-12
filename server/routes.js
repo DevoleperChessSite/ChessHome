@@ -4122,8 +4122,31 @@ app.get('/age', (req, res) => { res.sendFile(path.join(__dirname, '../public', '
 app.get('/online', (req, res) => res.sendFile(path.join(__dirname, '../public/online.html')));
 
 
+// ── /api/stats: тяжёлая выборка (24 запроса к БД) — кэшируем на 60 секунд ──
+// Без кэша каждый заход на /stats (в том числе ботов) занимал почти весь пул
+// соединений (30), и остальные запросы сайта ждали или падали по таймауту.
+const STATS_TTL_MS = 60_000;
+let statsCache = { ts: 0, data: null, pending: null };
+
 app.get('/api/stats', async (req, res) => {
   try {
+    if (statsCache.data && Date.now() - statsCache.ts < STATS_TTL_MS) return res.json(statsCache.data);
+    // Одновременные запросы делят одну пересборку, а не запускают по 24 запроса каждый
+    if (!statsCache.pending) {
+      statsCache.pending = buildStats().finally(() => { statsCache.pending = null; });
+    }
+    const data = await statsCache.pending;
+    statsCache.data = data;
+    statsCache.ts = Date.now();
+    res.json(data);
+  } catch (e) {
+    console.error('[Stats]', e.message);
+    if (statsCache.data) return res.json(statsCache.data);   // при сбое БД — прошлая версия
+    res.status(500).json({ error: 'Ошибка' });
+  }
+});
+
+async function buildStats() {
     const FOUNDED = new Date('2026-03-30T00:00:00Z');
     const daysAlive = Math.floor((Date.now() - FOUNDED.getTime()) / 86400000);
 
@@ -4157,7 +4180,7 @@ app.get('/api/stats', async (req, res) => {
     const totalMessages = parseInt(dm.rows[0].count) + parseInt(chat.rows[0].count) + parseInt(clubChat.rows[0].count);
     const deletedUsers = await countDeletedUsers();   // удалённые аккаунты остаются в общем счётчике
 
-    res.json({
+    return ({
       meta: { daysAlive, founded: '30.03.2026' },
       totals: {
         users: parseInt(users.rows[0].count) + deletedUsers, deletedUsers, games: parseInt(games.rows[0].count), messages: totalMessages,
@@ -4172,8 +4195,7 @@ app.get('/api/stats', async (req, res) => {
       charts: { gamesByTC: gamesByTC.rows, gamesByResult: gamesByResult.rows, regByDay: registrationsByDay.rows, gamesByDay: gamesByDay.rows },
       misc: { avgGameMoves: Math.round(parseFloat(avgGameMoves.rows[0]?.avg) || 0), puzzleSuccessRate: puzzleAttempts.rows[0].count > 0 ? Math.round(parseInt(puzzleSolved.rows[0].count) / parseInt(puzzleAttempts.rows[0].count) * 100) : 0 }
     });
-  } catch(e) { console.error('[Stats]', e.message); res.status(500).json({ error: 'Ошибка' }); }
-});
+}
 
 
 // ── Dev Diary API ───────────────────────────────────────────
