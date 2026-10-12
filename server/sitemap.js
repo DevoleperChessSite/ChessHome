@@ -24,7 +24,7 @@ const CACHE_MS = 10 * 60 * 1000;   // кэш 10 минут — защита БД
 const CHUNK = 40000;               // лимит Google — 50 000 URL на файл
 
 // Приватные/служебные страницы → не индексировать
-const NOINDEX_PREFIXES = ['/inbox', '/settings', '/report', '/online', '/followers', '/following'];
+const NOINDEX_PREFIXES = ['/inbox', '/settings', '/report', '/appeal', '/online', '/followers', '/following'];
 
 // Постоянные публичные страницы (без lastmod — честнее, чем фиктивная дата)
 const STATIC_PAGES = [
