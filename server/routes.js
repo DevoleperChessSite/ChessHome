@@ -3564,10 +3564,15 @@ app.get('/api/users/:username/clubs', (req, res) => {
 });
 
 
+// Два рейтинга задач:
+//   GET /api/puzzles/leaderboard             — общий (старая + новая система, как раньше)
+//   GET /api/puzzles/leaderboard?system=new  — только новая система (Glicko-2, puzzle_rating_system = 2)
+// Одинаковый рейтинг сортируем по числу решённых и нику — иначе порядок «прыгает» между обновлениями.
 app.get('/api/puzzles/leaderboard', async (req, res) => {
   try {
     await puzzleService.ensureSchema();
-    const r = await db(`SELECT username,puzzle_rating,puzzle_solved,puzzle_attempted,puzzle_rating_system,role FROM users WHERE puzzle_attempted > 0 ORDER BY puzzle_rating DESC LIMIT 50`);
+    const onlyNew = String(req.query.system || '').toLowerCase() === 'new';
+    const r = await db(`SELECT username,puzzle_rating,puzzle_solved,puzzle_attempted,puzzle_rating_system,role FROM users WHERE puzzle_attempted > 0${onlyNew ? ' AND puzzle_rating_system = 2' : ''} ORDER BY puzzle_rating DESC, puzzle_solved DESC, username ASC LIMIT 50`);
     res.json(r.rows.map((row,i) => ({
       rank: i+1, username: row.username,
       oldSystem: Number(row.puzzle_rating_system) === 1,   // рейтинг набран по старой системе, ещё не сброшен
