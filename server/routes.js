@@ -180,6 +180,7 @@ function requireOwner(req, res, next) {
 const moderation = require('./moderation');
 const twins = require('./twins');   // оценка «один человек» по сигналам устройства/сети
 require('./botmoderator');
+require('./changelog');
 const puzzleService = require('./services/puzzle.service'); // задачи: проверка ходов + рейтинг Glicko-2
 puzzleService.ensureSchema().catch(() => {});              // колонки рейтинга создаются при старте (идемпотентно)
 
