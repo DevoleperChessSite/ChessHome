@@ -321,6 +321,17 @@ function connectSocket() {
     }
   });
   socket.on('error', msg => toast(msg, 'error'));
+  // Бан аккаунта: сервер присылает 'banned' и рвёт соединение
+  socket.on('banned', (data) => {
+    toast('Ваш аккаунт заблокирован' + (data && data.reason ? ': ' + data.reason : ''), 'error');
+    try { socket.disconnect(); } catch {}
+    setTimeout(() => location.reload(), 2500);
+  });
+  // Бан в чате на время: сервер присылает 'chat_banned' { until }
+  socket.on('chat_banned', (data) => {
+    window._chatBannedUntil = (data && data.until) ? data.until : Date.now() + 5 * 60000;
+    toast('Вы забанены в чате', 'error');
+  });
   socket.on('tournament_created', (t) => {
     toast('🎯 Новый турнир: ' + t.name + ' (' + t.timeControl + ')', 'info');
   });
@@ -918,6 +929,11 @@ function sendChatMsg() {
 
   if (!msg || !chessBoard.gameId) return;
   if (!socket) { toast('Нет соединения. Войдите заново.', 'error'); return; }
+  if (currentUser.banned) { toast('Ваш аккаунт заблокирован', 'error'); return; }
+  if (window._chatBannedUntil && Date.now() < window._chatBannedUntil) {
+    toast('Вы забанены в чате ещё на ' + Math.ceil((window._chatBannedUntil - Date.now()) / 60000) + ' мин.', 'error');
+    return;
+  }
 
   if (containsBadWords(msg)) {
     toast('Сообщение содержит запрещённые слова', 'error');
@@ -1293,21 +1309,26 @@ function showChatBanModal(msgId, rowEl, username) {
 
 async function executeChatBan(msgId, rowEl, username, durationMinutes) {
   try {
-    // 1. Удаляем конкретное сообщение (и все сообщения юзера на сервере)
-    await fetch('/api/admin/chat/user/' + encodeURIComponent(username), {
+    // 1. Удаляем сообщения пользователя
+    const r1 = await fetch('/api/admin/chat/user/' + encodeURIComponent(username), {
       method: 'DELETE',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' }
     });
+    if (!r1.ok) throw new Error('Не удалось удалить сообщения (' + r1.status + ')');
 
     // 2. Если выбран бан — отправляем запрос бана
     if (durationMinutes > 0) {
-      await fetch('/api/admin/chat-ban', {
+      const r2 = await fetch('/api/admin/chat-ban', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, durationMinutes })
       });
+      if (!r2.ok) {
+        let m = ''; try { m = (await r2.json()).error || ''; } catch {}
+        throw new Error('Чат-бан НЕ применён (' + r2.status + ')' + (m ? ': ' + m : ''));
+      }
       toast(`${username} забанен в чате на ${durationMinutes} мин.`, 'success');
     } else {
       toast(`Сообщения ${username} удалены`, 'success');
