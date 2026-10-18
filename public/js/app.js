@@ -987,9 +987,61 @@ async function initGlobalChat() {
     el.innerHTML = '';
     msgs.forEach(m => appendGlobalChatMsg(m, false));
     el.scrollTop = el.scrollHeight;
+
+    // «Бесконечная» прокрутка вверх: всё, что старше загруженного, подгружаем из БД
+    el._chatOldest  = msgs.length ? { ts: msgs[0].timestamp, id: msgs[0].id } : null;
+    el._chatHasMore = msgs.length > 0;
+    el._chatLoading = false;
+    if (!el._chatScrollBound) {
+      el._chatScrollBound = true;
+      el.addEventListener('scroll', () => { if (el.scrollTop < 150) loadOlderGlobalChat(); }, { passive: true });
+    }
   } catch {}
 }
-function appendGlobalChatMsg(msg, scroll = true) {
+
+// ── История общего чата: при прокрутке к началу подгружаем более старые сообщения ──
+async function loadOlderGlobalChat() {
+  const el = document.getElementById('global-chat-messages');
+  if (!el || el._chatLoading || el._chatHasMore === false || !el._chatOldest) return;
+  if (el._chatRetryAt && Date.now() < el._chatRetryAt) return;   // после ошибки — небольшая пауза
+  el._chatLoading = true;
+
+  const note = document.createElement('div');
+  note.style.cssText = 'text-align:center;padding:6px;font-size:12px;color:var(--text-muted)';
+  note.textContent = 'Загрузка истории…';
+  el.insertBefore(note, el.firstChild);
+
+  try {
+    const { ts, id } = el._chatOldest;
+    const data = await apiGet('/chat/history?before=' + encodeURIComponent(ts) +
+                              '&beforeId=' + encodeURIComponent(id) + '&limit=50');
+    const msgs = (data && data.messages) || [];
+    note.remove();
+
+    if (msgs.length) {
+      const prevHeight = el.scrollHeight, prevTop = el.scrollTop;
+      const frag = document.createDocumentFragment();
+      msgs.forEach(m => { if (!document.getElementById('chatmsg-' + m.id)) appendGlobalChatMsg(m, false, frag); });
+      el.insertBefore(frag, el.firstChild);
+      el.scrollTop = prevTop + (el.scrollHeight - prevHeight);   // экран не «прыгает»
+      el._chatOldest = { ts: msgs[0].timestamp, id: msgs[0].id };
+    }
+
+    if (!data || !data.hasMore) {
+      el._chatHasMore = false;
+      const start = document.createElement('div');
+      start.style.cssText = 'text-align:center;padding:10px 6px;font-size:12px;color:var(--text-muted)';
+      start.textContent = '— начало истории чата —';
+      el.insertBefore(start, el.firstChild);
+    }
+  } catch (e) {
+    note.remove();
+    el._chatRetryAt = Date.now() + 5000;
+  } finally {
+    el._chatLoading = false;
+  }
+}
+function appendGlobalChatMsg(msg, scroll = true, target = null) {
   const el = document.getElementById('global-chat-messages');
   if (!el) return;
 
@@ -998,8 +1050,9 @@ function appendGlobalChatMsg(msg, scroll = true) {
     const sys = document.createElement('div');
     sys.style.cssText = 'text-align:center;padding:6px 12px;margin:4px 0;font-size:12px;color:#e67e22;background:rgba(230,126,34,0.1);border-radius:8px;border:1px solid rgba(230,126,34,0.25);font-weight:600';
     sys.textContent = '⚠️ ' + msg.message;
+    const sysNearBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < 120;
     el.appendChild(sys);
-    if (scroll) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+    if (scroll && sysNearBottom) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
     return;
   }
 
@@ -1018,10 +1071,11 @@ function appendGlobalChatMsg(msg, scroll = true) {
     return regex.test(msg.message);
   })();
 
-  const time = new Date(msg.timestamp).toLocaleTimeString('ru', {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  const when = new Date(msg.timestamp);
+  const hhmm = when.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+  const time = when.toDateString() === new Date().toDateString()
+    ? hhmm
+    : when.toLocaleDateString('ru', { day: 'numeric', month: 'short' }) + ', ' + hhmm;
 
   const row = document.createElement('div');
   row.id = 'chatmsg-' + msg.id;
@@ -1127,6 +1181,7 @@ function appendGlobalChatMsg(msg, scroll = true) {
   const timeEl = document.createElement('span');
   timeEl.style.cssText = 'font-size:11px;color:var(--text-muted);margin-left:auto';
   timeEl.textContent = time;
+  timeEl.title = when.toLocaleString('ru');
   header.appendChild(timeEl);
 
   // Кнопка удаления (только для админа)
@@ -1156,9 +1211,12 @@ function appendGlobalChatMsg(msg, scroll = true) {
   body.appendChild(text);
 
   row.appendChild(body);
-  el.appendChild(row);
+  // Считаем ДО вставки: после неё scrollHeight уже вырастет
+  const nearBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < 120;
+  (target || el).appendChild(row);
 
-  if (scroll) {
+  // Не «выдёргиваем» вниз того, кто листает историю; своё сообщение — всегда вниз
+  if (scroll && (nearBottom || isMe)) {
     requestAnimationFrame(() => {
       el.scrollTop = el.scrollHeight;
     });
