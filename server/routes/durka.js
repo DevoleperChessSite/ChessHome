@@ -11,6 +11,7 @@ const {
   limiterStrict,
   tournaments,
   rateLimit,
+  safeSecretEqual,
 } = require('../core');
 
 module.exports = function register(app) {

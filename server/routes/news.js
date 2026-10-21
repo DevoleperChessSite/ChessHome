@@ -21,6 +21,7 @@ const {
   rateLimit,
   NEWS_OWNER_USERNAME,
   isNewsOwner,
+  deleteNewsPost,
 } = require('../core');
 
 const {
@@ -461,7 +462,7 @@ async function handleDeleteNewsComment(req, res) {
 
 
 // ── Загрузка изображений (обложки новостей) ──────────────────
-const UPLOADS_DIR = path.join(__dirname, '../public/uploads');
+const UPLOADS_DIR = path.join(__dirname, '../../public/uploads');
 
 try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch (e) { console.error('[Upload] Не удалось создать папку uploads:', e.message); }
 

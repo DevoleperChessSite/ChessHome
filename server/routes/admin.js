@@ -27,6 +27,7 @@ const {
   requireVipGranter,
   adminSanitizeUser,
   findSocketByUsername,
+  deleteChatMsg,
 } = require('../core');
 
 const {

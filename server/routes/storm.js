@@ -22,6 +22,8 @@ const {
   parsePuzzleSolution,
 } = require('./_shared');
 
+const puzzleService = require('../services/puzzle.service'); // задачи: проверка ходов + рейтинг Glicko-2
+
 module.exports = function register(app) {
 app.post('/api/storm/start', authMiddleware, rateLimit(limiterStrict), async (req, res) => {
   const runId = uuidv4();

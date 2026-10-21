@@ -17,6 +17,10 @@ const {
   countDeletedUsers,
 } = require('./_shared');
 
+// ── /api/stats: тяжёлая выборка (24 запроса к БД) — кэшируем на 60 секунд ──
+const STATS_TTL_MS = 60_000;
+let statsCache = { ts: 0, data: null, pending: null };
+
 module.exports = function register(app) {
 app.get('/api/stats', async (req, res) => {
   try {
