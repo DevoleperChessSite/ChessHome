@@ -32,8 +32,11 @@ const ChessTV = (() => {
         // Обновляем доску превью конкретной партии
         if (boardStates[gameId]) {
           try {
-            const result = ChessEngine.applyMove(boardStates[gameId], move);
-            if (result) { boardStates[gameId] = result.state; renderMiniBoard(gameId); }
+            // ChessEngine.applyMove возвращает НОВОЕ состояние напрямую,
+            // а не { state } — раньше читали result.state (undefined) и
+            // доска переставала обновляться навсегда.
+            const next = ChessEngine.applyMove(boardStates[gameId], move);
+            if (next) { boardStates[gameId] = next; renderMiniBoard(gameId); }
           } catch(e) {}
         }
       });
@@ -145,8 +148,9 @@ const ChessTV = (() => {
       try {
         let st = ChessEngine.parseFEN(ChessEngine.START_FEN);
         for (const m of game.moves) {
+          // applyMove возвращает состояние напрямую (см. комментарий выше)
           const r = ChessEngine.applyMove(st, m);
-          if (r) st = r.state; else break;
+          if (r) st = r; else break;
         }
         boardStates[game.id] = st;
       } catch(e) {}

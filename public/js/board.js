@@ -478,7 +478,7 @@ const chessBoard = (() => {
     selectedSq = null;
     legalMovesCache = [];
 
-    playSound(move);
+    playSound(move, prevState);
 
     if (gameMode === 'online' && socket) {
       if (typeof emitGameplayEvent === 'function') {
@@ -511,7 +511,7 @@ const chessBoard = (() => {
     historyStates.push(ChessEngine.deepClone(state));
     viewingMove = -1;
     lastMove = move;
-    playSound(move);
+    playSound(move, prevState);
     checkGameStatus();
     tickClock();
 
@@ -866,7 +866,11 @@ const chessBoard = (() => {
   }
 
   // ─── ЗВУКИ ────────────────────────────────────────────────
-  function playSound(move) {
+  // prevState — позиция ДО применения хода: раньше взятие определялось
+  // ПОСЛЕ applyMove, когда board[move.to] уже занят двинувшейся фигурой,
+  // поэтому звук «взятия» играл на КАЖДОМ ходу, а тихий ход и рокировка
+  // были недостижимы.
+  function playSound(move, prevState) {
     const settings = typeof getSettings === 'function' ? getSettings() : { sounds: true };
     if (!settings.sounds) return;
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -875,7 +879,8 @@ const chessBoard = (() => {
     osc.connect(gain); gain.connect(ctx.destination);
     gain.gain.setValueAtTime(0.1, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-    if (move.enPassant || state.board[move.to] !== null) {
+    const wasCapture = move.enPassant || (prevState ? prevState.board[move.to] !== null : false);
+    if (wasCapture) {
       osc.frequency.value = 300;
     } else if (move.castle) {
       osc.frequency.value = 500;
@@ -914,6 +919,8 @@ const chessBoard = (() => {
         timeout:   T('game.time_out', 'Время вышло'),
         timeout_firstmove: T('game.time_out_first_move', 'Время на первый ход вышло'),
         agreement: T('game.by_agreement', 'По соглашению'),
+        anticheat_admin: T('game.anticheat_admin', 'Ваш соперник заблокирован за использование читов'),
+        anticheat: T('game.anticheat', 'Заблокирован за использование читов'),
       };
       reasonText = reasons[data.reason] || drawReasonText(data.reason) || '';
     }

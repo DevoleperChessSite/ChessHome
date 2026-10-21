@@ -221,7 +221,10 @@ function connectSocket() {
     flushPendingGameplayEvents();
   });
   socket.on('online_count', count => {
-  const el = document.getElementById('online-count');
+  // Элемент #online-count в разметке не существует — реальный счётчик
+  // в шапке это #chat-online-count. Раньше обращение к null кидало
+  // TypeError (молча гасилось) и список в модалке не обновлялся.
+  const el = document.getElementById('online-count') || document.getElementById('chat-online-count');
   if (el) el.textContent = count;
 });
   socket.on('challenges_update', challenges => renderChallengeList(challenges));
@@ -394,7 +397,12 @@ document.addEventListener('click', (e) => {
 async function fetchOnline() {
   try {
     const d = await apiGet('/online');
-    document.getElementById('online-count').textContent = d.count;
+    // Элемента #online-count нет в index.html (реальный счётчик —
+    // #chat-online-count): обращение к null ронило функцию TypeError'ом
+    // на каждом вызове (раз в 10 секунд), и открытый список
+    // онлайн-игроков никогда не обновлялся.
+    const el = document.getElementById('online-count') || document.getElementById('chat-online-count');
+    if (el) el.textContent = d.count;
     // Если модал открыт — обновляем список
     const modal = document.getElementById('modal-online-users');
     if (modal && modal.style.display !== 'none') {
@@ -530,8 +538,18 @@ function acceptChallenge(id) {
 }
 
 function showIncomingChallenge(from, socketId, rated = true, timeControl = '10+0') {
+  // Уже открыт диалог другого вызова — новый отклоняем автоматически:
+  // наслоившиеся блокирующие confirm() приводили к тому, что принятие
+  // «старого» вызова ломало игру (игроки уходили в чужую партию).
+  if (showIncomingChallenge._open) {
+    socket.emit('decline_challenge', socketId);
+    return;
+  }
+  showIncomingChallenge._open = true;
   const kind = rated === false ? 'товарищескую партию' : 'партию';
-  const accept = confirm(`${from} вызывает вас на ${kind} (${timeControl})! Принять?`);
+  let accept = false;
+  try { accept = confirm(`${from} вызывает вас на ${kind} (${timeControl})! Принять?`); }
+  finally { showIncomingChallenge._open = false; }
   if (accept) socket.emit('accept_direct_challenge', { fromSocketId: socketId, rated });
   else socket.emit('decline_challenge', socketId);
 }
@@ -748,8 +766,11 @@ function challengeUserFromProfile(username) {
   if (!currentUser) { openModal('modal-login'); return; }
   if (!socket) { toast('Нет соединения. Войдите заново.', 'error'); return; }
   const rated = !confirm('Сделать партию товарищеской (без изменения рейтинга)?\n\nОК — товарищеская, Отмена — рейтинговая.');
+  // Тост «Вызов отправлен!» убран: успех показывался ДО ответа сервера,
+  // и при офлайне цели пользователь видел «успех», а следом ошибку
+  // «Не в сети». Старт партии (game_start) — сам по себе подтверждение;
+  // об ошибке сообщит стандартный обработчик socket 'error'.
   socket.emit('challenge_user', { username, rated, timeControl: selectedTC });
-  toast(`Вызов отправлен ${username}!`, 'success');
 }
 
 async function adminBan(username) {
@@ -1768,7 +1789,9 @@ function loadPGN() {
       state.history = [...histStates[histStates.length-1].history, { ...found, san }];
       histStates.push(ChessEngine.deepClone(state));
     }
-    chessBoard.loadFEN(ChessEngine.toFEN(histStates[0]));
+    // Загружаем ФИНАЛЬНУЮ позицию: раньше брали histStates[0] — стартовую,
+    // и после «PGN загружен: N ходов» пользователь видел пустую доску.
+    chessBoard.loadFEN(ChessEngine.toFEN(histStates[histStates.length - 1]));
     toast(`PGN загружен: ${tokens.length} ходов`, 'success');
   } catch(e) { toast('Ошибка загрузки PGN', 'error'); console.error(e); }
 }

@@ -39,7 +39,14 @@
         // всплыть наружу.
         throw new Error('Сервер временно недоступен. Попробуйте ещё раз через минуту.');
       }
-      if (!res.ok) throw new Error(data.error || 'Ошибка');
+      if (!res.ok) {
+        // Прикладываем HTTP-статус к ошибке: страницы проверяют e.status
+        // (например, blog.html делает location.href='/404.html' при 404).
+        // Раньше Error создавался без status и такие ветки были мёртвым кодом.
+        const err = new Error(data.error || 'Ошибка');
+        err.status = res.status;
+        throw err;
+      }
       return data;
     });
   }
