@@ -78,8 +78,8 @@ require('./game-page')(app);          // страница партии /game/:ga
 
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Не найдено' });
-  if (/\.[a-z0-9]+$/i.test(req.path)) { return res.status(404).sendFile(path.join(__dirname, '../public/404.html')); }
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+  if (/\.[a-z0-9]+$/i.test(req.path)) { return res.status(404).sendFile(path.join(__dirname, '../../public/404.html')); }
+  res.sendFile(path.join(__dirname, '../../public/index.html'));
 });
 
 

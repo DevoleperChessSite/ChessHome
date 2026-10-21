@@ -12,7 +12,7 @@
     _mount, _renderHeaderRight, _buildDrawerLinks } = INT;
 
   // ─── PUBLIC API ────────────────────────────────────────────────────────────
-  const CH = {
+  const CH = Object.assign(window.CH, {
 
     async initHeader(options = {}) {
       if (options?.activePage) _s.activePage = options.activePage;
@@ -206,7 +206,7 @@
       else if (typeof window.logout === 'function' && window.logout !== CH.logout) window.logout();
       else window.location = '/';
     },
-  };
+  });
 
   // Алиасы — app.js вызывает эти глобально
   window.toggleMobileNav = () => CH.openMobileNav();

@@ -127,5 +127,5 @@
     </div>`;
   }
 
-  Object.assign(INT, { _renderHeaderRight });
+  Object.assign(INT, { _renderHeaderRight, showOnlineFriends });
 })();
