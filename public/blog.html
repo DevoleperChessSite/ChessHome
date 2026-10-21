@@ -496,7 +496,7 @@ a{color:inherit;text-decoration:none}
     </div>
 
     <!-- Big Comments button -->
-    <a id="comments-btn-wrap" href="#" onclick="openCommentsView(event)" style="display:none;text-decoration:none;margin-top:28px;display:block">
+    <a id="comments-btn-wrap" href="#" onclick="openCommentsView(event)" style="display:none;text-decoration:none;margin-top:28px">
       <div class="comments-big-btn">
         <span class="cbb-icon">💬</span>
         <span class="cbb-label" data-i18n="blog.comments_label">Комментарии</span>
@@ -912,12 +912,17 @@ async function openPost(id, noView) {
     const cbbWrap = document.getElementById('comments-btn-wrap');
     if (post.status === 'published') {
       cbbWrap.style.display = 'block';
-      // Подгрузим счётчик
+      // Подгрузим счётчик. ВАЖНО: apiGet (js/api.js) уже возвращает
+      // распарсенный JSON. Раньше здесь был лишний .then(r => r.json()),
+      // который падал с «r.json is not a function» и молча глотался пустым
+      // .catch() — поэтому число комментариев на кнопке никогда не
+      // появлялось (issue #132). Считаем только НЕ удалённые комментарии.
       apiGet('/blog/'+id+'/comments')
-        .then(r=>r.json()).then(d=>{
-          const el = document.getElementById('cbb-count');
-          if (el) el.textContent = d.count > 0 ? d.count : '';
-        }).catch(()=>{});
+        .then(d => {
+          const deleted = (d.comments || []).filter(c => c.deleted).length;
+          updateCommentCount((d.count || 0) - deleted);
+        })
+        .catch(()=>{});
     } else {
       cbbWrap.style.display = 'none';
     }
@@ -1121,6 +1126,18 @@ function closeCommentsView() {
   window.scrollTo(0,0);
 }
 
+// Единая точка обновления счётчика комментариев: и на большой кнопке
+// «Комментарии» в статье, и в заголовке списка комментариев. Считаем
+// только НЕ удалённые комментарии — столько их реально видно читателю
+// (раньше в двух из трёх мест показывался cmtData.length вместе с
+// удалёнными, а вычисленная переменная vis нигде не использовалась).
+function updateCommentCount(n) {
+  const cbbCount = document.getElementById('cbb-count');
+  if (cbbCount) cbbCount.textContent = n > 0 ? n : '';
+  const label = document.getElementById('cmt-count-label');
+  if (label) label.textContent = n === 0 ? CH_I18N.t('blog.no_comments_yet') : CH_I18N.tn('blog.comment_count', n);
+}
+
 async function loadComments() {
   const listEl = document.getElementById('cmt-list');
   listEl.innerHTML = `<div class="blog-loading"><div class="spinner"></div> ${CH_I18N.t('blog.loading')}</div>`;
@@ -1131,9 +1148,7 @@ async function loadComments() {
     renderBanNotice();
     renderWriteForm();
     renderComments();
-    const label = document.getElementById('cmt-count-label');
-    const vis = cmtData.filter(c=>!c.deleted).length;
-    label.textContent = cmtData.length === 0 ? CH_I18N.t('blog.no_comments_yet') : CH_I18N.tn('blog.comment_count', cmtData.length);
+    updateCommentCount(cmtData.filter(c=>!c.deleted).length);
   } catch(e) {
     listEl.innerHTML = `<div class="cmt-empty"><div class="ei">⚠️</div><p>${escapeHtml(e.message)}</p></div>`;
   }
@@ -1327,9 +1342,9 @@ async function deleteComment(cid) {
     const el = document.getElementById('cmt-'+cid);
     if (el && c) { el.replaceWith(buildCommentEl(c)); }
     toast(CH_I18N.t('blog.toast.comment_deleted'),'success');
-    // Update the counter
-    const vis = cmtData.filter(x=>!x.deleted).length;
-    document.getElementById('cmt-count-label').textContent = CH_I18N.tn('blog.comment_count', cmtData.length);
+    // Update the counter (только неудалённые — раньше счётчик после
+    // удаления не уменьшался: использовался cmtData.length вместо vis)
+    updateCommentCount(cmtData.filter(x=>!x.deleted).length);
   } catch(e) { toast(e.message,'error'); }
 }
 
@@ -1448,12 +1463,8 @@ async function submitComment() {
     const listEl = document.getElementById('cmt-list');
     if (listEl.querySelector('.cmt-empty')) listEl.innerHTML='';
     listEl.appendChild(buildCommentEl(res.comment));
-    // Update the counter
-    const label = document.getElementById('cmt-count-label');
-    label.textContent = CH_I18N.tn('blog.comment_count', cmtData.length);
-    const cbbCount = document.getElementById('cbb-count');
-    const visCount = cmtData.filter(c=>!c.deleted).length;
-    if (cbbCount) cbbCount.textContent = visCount > 0 ? visCount : '';
+    // Update the counter (единый хелпер: кнопка + заголовок списка)
+    updateCommentCount(cmtData.filter(c=>!c.deleted).length);
     // Scroll to the new comment
     const newEl = document.getElementById('cmt-'+res.comment.id);
     if (newEl) newEl.scrollIntoView({behavior:'smooth',block:'end'});
