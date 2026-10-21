@@ -41,6 +41,7 @@ const {
   tryPairTournamentPlayers,
   finishTournamentGame,
   anticheatBan,
+  deleteTournamentFromDB,
 } = require('../core');
 
 const {

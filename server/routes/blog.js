@@ -19,6 +19,7 @@ const {
   JWT_SECRET,
   rateLimit,
   isBlogAdmin,
+  deleteBlogPost,
 } = require('../core');
 
 const {
