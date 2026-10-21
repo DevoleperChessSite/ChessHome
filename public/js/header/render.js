@@ -147,7 +147,7 @@
     const friendsFloat = document.createElement('div');
     friendsFloat.id = 'ch-friends-float';
     friendsFloat.innerHTML = '👥 ' + esc(t('header.friends_online_label'));
-    friendsFloat.addEventListener('click', showOnlineFriends);
+    friendsFloat.addEventListener('click', () => INT.showOnlineFriends && INT.showOnlineFriends());
     root.appendChild(friendsFloat);
 
     document.body.insertBefore(root, document.body.firstChild);

@@ -229,7 +229,7 @@ app.post('/api/blog/:id/like', blogAuthMiddleware, rateLimit(limiterStrict), asy
 app.get('/blog/:id/comments', (req, res) => {
   const post = blogPosts.find(p => p.id === req.params.id);
   if (!post || post.status === 'hidden') return res.redirect('/404.html');
-  res.sendFile(path.join(__dirname, '../public/blog.html'));
+  res.sendFile(path.join(__dirname, '../../public/blog.html'));
 });
 
 

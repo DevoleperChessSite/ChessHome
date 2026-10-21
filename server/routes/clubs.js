@@ -32,9 +32,9 @@ const {
 const moderation = require('../moderation');
 
 module.exports = function register(app) {
-app.get('/clubs',      (req, res) => res.sendFile(path.join(__dirname, '../public/clubs.html')));
+app.get('/clubs',      (req, res) => res.sendFile(path.join(__dirname, '../../public/clubs.html')));
 
-app.get('/clubs/:id',  (req, res) => res.sendFile(path.join(__dirname, '../public/clubs.html')));
+app.get('/clubs/:id',  (req, res) => res.sendFile(path.join(__dirname, '../../public/clubs.html')));
 
 
 app.get('/api/clubs', (req, res) => {
