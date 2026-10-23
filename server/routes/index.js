@@ -69,6 +69,7 @@ require('./clubs')(app);              // клубы
 require('./puzzles')(app);            // задачи
 require('./durka')(app);              // «дурка» (внешние турниры)
 require('./storm')(app);              // Puzzle Storm
+require('./blind')(app);              // Blind Puzzle
 require('./pages-late')(app);         // HTML-страницы (вторая группа)
 require('./stats')(app);              // статистика
 require('./dev-diary')(app);          // дневник разработки
