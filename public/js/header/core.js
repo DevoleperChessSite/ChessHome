@@ -23,6 +23,7 @@
   const I18N_FALLBACK = {
     'header.nav_vs_computer': 'Игра с компьютером',
     'header.nav_changelog': 'Обновления',
+    'header.nav_blind': 'Слепые задачи',
   };
   function t(key, vars) {
     const r = (window.CH_I18N && window.CH_I18N.t) ? window.CH_I18N.t(key, vars) : key;
@@ -68,6 +69,7 @@
       items: [
         { id: 'puzzles', i18nLabel: 'header.nav_puzzles',        icon: '🧩', href: '/puzzles' },
         { id: 'storm',   i18nLabel: 'header.nav_storm',  icon: '⚡', href: '/storm', spa: false },
+        { id: 'blind-puzzle', i18nLabel: 'header.nav_blind', icon: '🙈', href: '/blind-puzzle', spa: false },
       ]
     },
     {

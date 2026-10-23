@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<script src="/js/utils.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/toast.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="blind.page_title">Слепые задачи — Chess Home</title>
+  <script src="/js/i18n.js"></script>
+  <script src="/js/header/core.js"></script>
+  <script src="/js/header/styles.js"></script>
+  <script src="/js/header/render.js"></script>
+  <script src="/js/header/right.js"></script>
+  <script src="/js/header/api.js"></script>
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="icon" href="/img/logo/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0e0f13;--bg2:#161820;--bg3:#1e2028;--bg4:#262830;
+  --border:#2e3040;--border2:#3a3d50;
+  --text:#e8e9f0;--text2:#8a8ea8;--text3:#5a5e78;
+  --accent:#c9a84c;--accent-l:#e8c870;
+  --green:#4caf72;--red:#e05555;--blue:#5b9ef0;
+  --radius:10px;--radius-lg:16px;
+  --font:'Nunito',sans-serif;--font-d:'Playfair Display',serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+.bp-wrap{max-width:1000px;margin:0 auto;padding:24px 16px 60px}
+.bp-title{font-family:var(--font-d);font-size:clamp(26px,5vw,38px);margin-bottom:6px}
+.bp-sub{color:var(--text2);font-size:14.5px;line-height:1.5;margin-bottom:22px;max-width:640px}
+.bp-btn{font-family:inherit;font-size:14px;font-weight:700;padding:10px 18px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg3);color:var(--text);cursor:pointer;transition:.15s}
+.bp-btn:hover{border-color:var(--accent);color:var(--accent-l)}
+.bp-btn.primary{background:var(--accent);color:#1a1405;border-color:var(--accent)}
+.bp-btn.primary:hover{background:var(--accent-l);color:#1a1405}
+.bp-btn:disabled{opacity:.45;cursor:default}
+
+/* Выбор уровня */
+.bp-levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px}
+.bp-level{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;cursor:pointer;text-align:left;color:inherit;font-family:inherit;transition:.15s}
+.bp-level:hover{border-color:var(--accent);transform:translateY(-2px)}
+.bp-level.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.bp-level h3{font-size:17px;margin-bottom:4px}
+.bp-level .t{font-size:26px;font-weight:800;color:var(--accent-l)}
+.bp-level p{color:var(--text2);font-size:12.5px;margin-top:6px;line-height:1.4}
+.bp-level .pts{display:inline-block;margin-top:8px;font-size:12px;font-weight:700;color:var(--green)}
+.bp-opts{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:22px;color:var(--text2);font-size:13.5px}
+.bp-opts select{font-family:inherit;background:var(--bg3);color:var(--text);border:1px solid var(--border2);border-radius:8px;padding:7px 10px}
+
+/* Игровая зона */
+.bp-play{display:none;gap:22px;align-items:flex-start;flex-wrap:wrap}
+.bp-play.on{display:flex}
+.bp-boardcol{flex:1 1 360px;max-width:560px;min-width:0}
+.bp-side{flex:1 1 260px;min-width:240px}
+.bp-board{display:grid;grid-template-columns:repeat(8,1fr);width:100%;aspect-ratio:1;border-radius:8px;overflow:hidden;box-shadow:0 6px 28px rgba(0,0,0,.5);touch-action:none;user-select:none;-webkit-user-select:none}
+.bp-sq{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;aspect-ratio:1}
+.bp-sq img{position:relative;z-index:2;width:88%;height:88%;pointer-events:none;user-select:none;display:block}
+.bp-sq .co{position:absolute;font-size:clamp(8px,1.9vw,12px);font-weight:700;line-height:1;z-index:3;pointer-events:none}
+.bp-sq .co.r{top:2px;left:3px}.bp-sq .co.f{bottom:2px;right:3px}
+.bp-sq.hl::after,.bp-sq.sel::after{content:'';position:absolute;inset:0;z-index:1}
+.bp-sq.hl::after{background:rgba(205,210,106,.6)}
+.bp-sq.sel::after{background:rgba(100,200,100,.65)}
+.bp-sq.wrong::after{content:'';position:absolute;inset:0;z-index:1;background:rgba(224,85,85,.55)}
+.bp-timer{height:8px;background:var(--bg3);border-radius:6px;margin:0 0 10px;overflow:hidden;visibility:hidden}
+.bp-timer.on{visibility:visible}
+.bp-timer i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--accent),var(--accent-l));transform-origin:left}
+.bp-status{min-height:44px;margin-top:12px;font-size:15px;font-weight:700;line-height:1.4}
+.bp-status.ok{color:var(--green)}.bp-status.bad{color:var(--red)}.bp-status.info{color:var(--accent-l)}
+.bp-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:14px}
+.bp-card h4{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin-bottom:10px}
+.bp-row{display:flex;gap:8px;flex-wrap:wrap}
+.bp-line{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px;line-height:1.7;word-break:break-word}
+.bp-line b{color:var(--accent-l)}.bp-line .x{color:var(--red);font-weight:700}
+.bp-nav{display:none;gap:6px;margin-top:10px}
+.bp-nav.on{display:flex}
+.bp-nav .bp-btn{flex:1;padding:9px 0}
+.bp-promo{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9000}
+.bp-promo.on{display:flex}
+.bp-promo div{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:16px;display:flex;gap:10px}
+.bp-promo button{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;width:68px;height:68px;cursor:pointer}
+.bp-promo button:hover{border-color:var(--accent)}
+.bp-promo img{width:52px;height:52px}
+
+/* Статистика и лидерборд */
+.bp-bottom{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:26px}
+.bp-table{width:100%;border-collapse:collapse;font-size:13.5px}
+.bp-table th{color:var(--text2);font-weight:600;text-align:left;padding:6px 4px;border-bottom:1px solid var(--border)}
+.bp-table td{padding:7px 4px;border-bottom:1px solid var(--border)}
+.bp-table td.n,.bp-table th.n{text-align:right}
+.bp-login{background:var(--bg2);border:1px dashed var(--border2);border-radius:var(--radius-lg);padding:18px;margin-bottom:18px;display:none;gap:12px;align-items:center;flex-wrap:wrap}
+.bp-login.on{display:flex}
+@media(max-width:640px){.bp-wrap{padding:16px 10px 90px}.bp-boardcol{flex-basis:100%;max-width:none}}
+  </style>
+</head>
+<body>
+<div class="bp-wrap">
+  <h1 class="bp-title" data-i18n="blind.title">🙈 Слепые задачи</h1>
+  <p class="bp-sub" data-i18n="blind.subtitle">Позицию показывают на несколько секунд, потом фигуры исчезают. Найди решение по памяти: ходи по пустой доске. Режим тренирует визуализацию и не влияет на рейтинг обычных задач.</p>
+
+  <div class="bp-login" id="bp-login">
+    <span data-i18n="blind.need_login">Чтобы играть и сохранять результаты, нужно войти в аккаунт.</span>
+    <button class="bp-btn primary" id="bp-login-btn">Войти</button>
+  </div>
+
+  <div id="bp-setup">
+    <div class="bp-levels" id="bp-levels"></div>
+    <div class="bp-opts">
+      <label for="bp-diff"><span data-i18n="blind.puzzle_diff">Сложность задачи:</span></label>
+      <select id="bp-diff">
+        <option value="">любая</option>
+        <option value="easy">лёгкая</option>
+        <option value="medium">средняя</option>
+        <option value="hard">сложная</option>
+      </select>
+      <button class="bp-btn primary" id="bp-start" disabled>Начать</button>
+    </div>
+  </div>
+
+  <div class="bp-play" id="bp-play">
+    <div class="bp-boardcol">
+      <div class="bp-timer" id="bp-timer"><i id="bp-timer-bar"></i></div>
+      <div class="bp-board" id="bp-board"></div>
+      <div class="bp-status" id="bp-status"></div>
+      <div class="bp-nav" id="bp-nav">
+        <button class="bp-btn" data-nav="first">⏮</button>
+        <button class="bp-btn" data-nav="prev">◀</button>
+        <button class="bp-btn" data-nav="next">▶</button>
+        <button class="bp-btn" data-nav="last">⏭</button>
+      </div>
+    </div>
+    <div class="bp-side">
+      <div class="bp-card">
+        <h4 id="bp-info-h">Задача</h4>
+        <div class="bp-line" id="bp-info"></div>
+      </div>
+      <div class="bp-card" id="bp-lines" style="display:none">
+        <h4>Разбор</h4>
+        <div class="bp-line" id="bp-sol"></div>
+        <div class="bp-line" id="bp-played" style="margin-top:6px"></div>
+      </div>
+      <div class="bp-row">
+        <button class="bp-btn primary" id="bp-next" style="display:none">Следующая задача</button>
+        <button class="bp-btn" id="bp-quit">К выбору уровня</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bp-bottom">
+    <div class="bp-card"><h4>Моя статистика</h4><div id="bp-stats"><span style="color:var(--text3)">Войдите, чтобы увидеть статистику</span></div></div>
+    <div class="bp-card"><h4>Лидерборд (всё время)</h4><div id="bp-lb">…</div></div>
+  </div>
+</div>
+
+<div class="bp-promo" id="bp-promo"><div id="bp-promo-opts"></div></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── i18n с русскими запасными строками (ключей blind.* в словаре пока нет) ──
+  function T(key, fb) {
+    try { const v = window.CH_I18N ? window.CH_I18N.t(key) : undefined; if (v && v !== key) return v; } catch (e) {}
+    return fb;
+  }
+  const esc = window.escapeHtml || (s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+  const $ = id => document.getElementById(id);
+  const notify = (m, t) => { if (typeof window.toast === 'function') window.toast(m, t || 'info'); };
+
+  const LEVELS = [
+    { key: 'easy',   name: 'Лёгкий',   sec: 10, pts: 1, note: 'Подсветка всех ходов остаётся на доске' },
+    { key: 'medium', name: 'Средний',  sec: 5,  pts: 2, note: 'Подсвечивается только последняя пара ходов' },
+    { key: 'hard',   name: 'Сложный',  sec: 2,  pts: 3, note: 'Без подсветок, ответ соперника — текстом' },
+    { key: 'insane', name: 'Безумный', sec: 1,  pts: 4, note: 'Ответы соперника тоже скрыты' },
+  ];
+  const PIECE = t => t.toUpperCase();
+
+  // ── Состояние живёт в замыкании: после «заката» фигур их нет ни в DOM, ни в window ──
+  const S = {
+    level: 'easy', user: null, sessionId: null, phase: 'idle', timer: null,
+    board: [], startFen: '', flipped: false, selected: null, hl: [], level_cfg: null,
+    drag: null, review: null, reviewIdx: 0, wrongSq: null, startedLevel: null,
+  };
+
+  // ── Доска / FEN ──
+  function fenToBoard(fen) {
+    const b = Array(64).fill(null), rows = fen.split(' ')[0].split('/');
+    for (let r = 0; r < 8; r++) { let f = 0; for (const ch of rows[r]) {
+      if (ch >= '1' && ch <= '8') f += +ch;
+      else { b[(7 - r) * 8 + f] = { color: ch === ch.toUpperCase() ? 'w' : 'b', type: ch.toLowerCase() }; f++; }
+    } }
+    return b;
+  }
+  const sqName = sq => 'abcdefgh'[sq % 8] + (Math.floor(sq / 8) + 1);
+  const sqOf = s => (s.charCodeAt(1) - 49) * 8 + (s.charCodeAt(0) - 97);
+  function applyUci(b, uci) {
+    const nb = b.slice(), f = sqOf(uci.slice(0, 2)), t = sqOf(uci.slice(2, 4)), p = nb[f];
+    if (!p) return nb;
+    if (p.type === 'k' && Math.abs(t - f) === 2) {                    // рокировка
+      const rk = Math.floor(f / 8) * 8;
+      if (t > f) { nb[rk + 5] = nb[rk + 7]; nb[rk + 7] = null; } else { nb[rk + 3] = nb[rk]; nb[rk] = null; }
+    }
+    if (p.type === 'p' && f % 8 !== t % 8 && !nb[t]) nb[Math.floor(f / 8) * 8 + t % 8] = null;   // en passant
+    nb[t] = uci.length > 4 ? { color: p.color, type: uci[4] } : p;
+    nb[f] = null;
+    return nb;
+  }
+
+  // ── Отрисовка ──
+  function render(opts) {
+    const el = $('bp-board'); el.innerHTML = '';
+    const showPieces = !!opts.pieces, board = opts.board || S.board;
+    const hlSet = new Set(opts.hl || []);
+    for (let i = 0; i < 64; i++) {
+      const sq = S.flipped ? (7 - i % 8) + Math.floor(i / 8) * 8 : (56 - Math.floor(i / 8) * 8 + i % 8);
+      const r = Math.floor(sq / 8), f = sq % 8, light = (r + f) % 2 !== 0;
+      const d = document.createElement('div');
+      d.className = 'bp-sq' + (hlSet.has(sq) ? ' hl' : '') + (S.selected === sq ? ' sel' : '') + (S.wrongSq === sq ? ' wrong' : '');
+      d.dataset.sq = sq;
+      d.style.background = light ? 'var(--board-light,#f0d9b5)' : 'var(--board-dark,#b58863)';
+      const cc = light ? 'var(--board-dark,#b58863)' : 'var(--board-light,#f0d9b5)';
+      if (S.flipped ? f === 7 : f === 0) d.insertAdjacentHTML('beforeend', `<span class="co r" style="color:${cc}">${r + 1}</span>`);
+      if (S.flipped ? r === 7 : r === 0) d.insertAdjacentHTML('beforeend', `<span class="co f" style="color:${cc}">${'abcdefgh'[f]}</span>`);
+      const p = showPieces && board[sq];
+      if (p) { const im = document.createElement('img'); im.src = '/img/pieces/' + p.color + PIECE(p.type) + '.svg'; im.draggable = false; im.alt = ''; d.appendChild(im); }
+      el.appendChild(d);
+    }
+  }
+  const currentHl = () => {
+    if (S.level === 'easy') return S.hl.flat();
+    if (S.level === 'medium') return S.hl.slice(-2).flat();
+    return [];
+  };
+  function status(msg, cls) { const e = $('bp-status'); e.textContent = msg || ''; e.className = 'bp-status' + (cls ? ' ' + cls : ''); }
+
+  // ── API ──
+  async function api(url, opts) {
+    const r = await fetch(url, Object.assign({ credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } }, opts));
+    let d = null; try { d = await r.json(); } catch (e) {}
+    if (!r.ok) { const err = new Error((d && d.error) || ('HTTP ' + r.status)); err.data = d; err.status = r.status; throw err; }
+    return d;
+  }
+
+  // ── Запуск задачи ──
+  async function startPuzzle() {
+    if (!S.user) { $('bp-login').classList.add('on'); return; }
+    clearTimeout(S.timer);
+    $('bp-start').disabled = true; $('bp-next').style.display = 'none';
+    status('Загрузка…', 'info');
+    try {
+      const diff = $('bp-diff').value;
+      const q = '/api/blind/puzzle?level=' + S.level + (diff ? '&difficulty=' + diff : '');
+      const d = await api(q);
+      S.sessionId = d.sessionId; S.startFen = d.fen; S.board = fenToBoard(d.fen);
+      S.flipped = (d.fen.split(' ')[1] || 'w') === 'b';
+      S.selected = null; S.hl = []; S.wrongSq = null; S.review = null; S.startedLevel = S.level;
+      $('bp-setup').style.display = 'none'; $('bp-play').classList.add('on');
+      $('bp-lines').style.display = 'none'; $('bp-nav').classList.remove('on');
+      const lv = LEVELS.find(l => l.key === S.level);
+      $('bp-info-h').textContent = lv.name + ' · ' + lv.pts + ' ' + T('blind.pts_short', 'очк.');
+      $('bp-info').innerHTML = (S.flipped ? 'Ход чёрных' : 'Ход белых') + '<br>Ходов до решения: <b>' + d.movesCount + '</b>';
+      // Фаза запоминания
+      S.phase = 'memorize';
+      render({ pieces: true, board: S.board });
+      status('Запоминай позицию!', 'info');
+      const bar = $('bp-timer-bar'), tm = $('bp-timer');
+      tm.classList.add('on'); bar.style.transition = 'none'; bar.style.transform = 'scaleX(1)';
+      void bar.offsetWidth;
+      bar.style.transition = 'transform ' + d.memorizeMs + 'ms linear'; bar.style.transform = 'scaleX(0)';
+      S.timer = setTimeout(hidePieces, d.memorizeMs);
+    } catch (e) {
+      status(e.status === 401 ? 'Войдите в аккаунт' : (e.message || 'Ошибка'), 'bad');
+      if (e.status === 401) $('bp-login').classList.add('on');
+      $('bp-start').disabled = false;
+      if (!$('bp-play').classList.contains('on')) $('bp-setup').style.display = '';
+    }
+  }
+
+  function hidePieces() {
+    S.phase = 'input';
+    $('bp-timer').classList.remove('on');
+    render({ pieces: false, hl: [] });             // в DOM фигур больше нет
+    status('Фигуры скрыты. Твой ход — ходи по памяти.', 'info');
+  }
+
+  // ── Ввод хода: drag&drop и клик-клик через pointer events (работает и на таче) ──
+  function sqFromEvent(e) {
+    const t = document.elementFromPoint(e.clientX, e.clientY);
+    const c = t && t.closest ? t.closest('.bp-sq') : null;
+    return c ? +c.dataset.sq : null;
+  }
+  const boardEl = $('bp-board');
+  boardEl.addEventListener('pointerdown', e => {
+    if (S.phase !== 'input') return;
+    S.drag = sqFromEvent(e);
+  });
+  boardEl.addEventListener('pointerup', e => {
+    if (S.phase !== 'input' || S.drag === null) return;
+    const from = S.drag, to = sqFromEvent(e); S.drag = null;
+    if (to === null) return;
+    if (to !== from) { S.selected = null; tryMove(from, to); return; }      // перетаскивание
+    if (S.selected === null) S.selected = to;                                // первый клик
+    else if (S.selected === to) S.selected = null;                           // снять выбор
+    else { const f = S.selected; S.selected = null; tryMove(f, to); return; }// второй клик
+    render({ pieces: false, hl: currentHl() });
+  });
+  boardEl.addEventListener('pointercancel', () => { S.drag = null; });
+
+  function tryMove(from, to) {
+    const p = S.board[from], toRank = Math.floor(to / 8);
+    const promo = p && p.type === 'p' && ((p.color === 'w' && toRank === 7) || (p.color === 'b' && toRank === 0));
+    if (promo) return askPromo(p.color, q => sendMove(from, to, q));
+    sendMove(from, to, '');
+  }
+  function askPromo(color, cb) {
+    const box = $('bp-promo-opts'); box.innerHTML = '';
+    for (const t of ['q', 'r', 'b', 'n']) {
+      const b = document.createElement('button'); b.innerHTML = '<img src="/img/pieces/' + color + PIECE(t) + '.svg" alt="">';
+      b.onclick = () => { $('bp-promo').classList.remove('on'); cb(t); }; box.appendChild(b);
+    }
+    $('bp-promo').classList.add('on');
+    render({ pieces: false, hl: currentHl() });
+  }
+
+  async function sendMove(from, to, promo) {
+    const uci = sqName(from) + sqName(to) + promo;
+    S.phase = 'busy'; render({ pieces: false, hl: currentHl() });
+    try {
+      const d = await api('/api/blind/move', { method: 'POST', body: JSON.stringify({ sessionId: S.sessionId, uci }) });
+      if (d.illegal) { status('✗ Так ходить нельзя — попробуй другой ход', 'bad'); S.phase = 'input'; return; }
+      if (!d.correct) { S.wrongSq = to; return finish(d, false); }
+      S.board = applyUci(S.board, d.canon || uci);
+      S.hl.push([from, to]);
+      if (d.finished) return finish(d, true);
+      status('✓ Верно!', 'ok');
+      if (d.autoMove) {
+        const a = d.autoMove;
+        S.board = applyUci(S.board, a);
+        if (S.level === 'insane') { status('✓ Верно! Соперник ответил (ход скрыт)', 'ok'); }
+        else if (S.level === 'hard') { status('✓ Верно! Соперник ответил: ' + a, 'ok'); }
+        else { S.hl.push([sqOf(a.slice(0, 2)), sqOf(a.slice(2, 4))]); status('✓ Верно! Соперник ответил — ходы подсвечены', 'ok'); }
+      }
+      S.phase = 'input'; render({ pieces: false, hl: currentHl() });
+    } catch (e) {
+      if (e.data && e.data.restart) { notify('Сессия сброшена — начни задачу заново', 'info'); return backToSetup(); }
+      status(e.message || 'Ошибка связи', 'bad'); S.phase = 'input'; render({ pieces: false, hl: currentHl() });
+    }
+  }
+
+  // ── Итог: раскрываем позицию и решение ──
+  function finish(d, ok) {
+    S.phase = 'done'; S.selected = null;
+    const rv = d.reveal, sol = rv.solution || [], played = rv.played || [];
+    // Позиции по линии решения
+    const positions = [fenToBoard(rv.fen)];
+    sol.forEach(m => positions.push(applyUci(positions[positions.length - 1], m)));
+    S.review = { positions, sol }; S.reviewIdx = ok ? positions.length - 1 : 0;
+    // Текстовый разбор: решение и ходы игрока (неверный отмечен ✗)
+    $('bp-sol').innerHTML = '<b>Решение:</b> ' + sol.map(esc).join(' ');
+    $('bp-played').innerHTML = '<b>Твои ходы:</b> ' + played.map((m, i) =>
+      (!ok && i === played.length - 1) ? '<span class="x">' + esc(m) + ' ✗</span>' : esc(m)).join(' ');
+    $('bp-lines').style.display = ''; $('bp-nav').classList.add('on');
+    const r = d.result || {};
+    if (ok) status('🎉 Решено! +' + (r.gained || 0) + ' очк. · серия ' + (r.streak || 0), 'ok');
+    else status('✗ Неверно. Серия сброшена. Смотри разбор ниже.', 'bad');
+    $('bp-next').style.display = ''; $('bp-start').disabled = false;
+    drawReview(); loadStats(); loadLeaderboard();
+  }
+  function drawReview() {
+    const R = S.review; if (!R) return;
+    const i = S.reviewIdx, hl = [];
+    if (i > 0) { const m = R.sol[i - 1]; hl.push(sqOf(m.slice(0, 2)), sqOf(m.slice(2, 4))); }
+    render({ pieces: true, board: R.positions[i], hl });
+  }
+  document.querySelectorAll('[data-nav]').forEach(b => b.addEventListener('click', () => {
+    const R = S.review; if (!R) return; const n = R.positions.length - 1, a = b.dataset.nav;
+    S.reviewIdx = a === 'first' ? 0 : a === 'last' ? n : a === 'prev' ? Math.max(0, S.reviewIdx - 1) : Math.min(n, S.reviewIdx + 1);
+    drawReview();
+  }));
+
+  function backToSetup() {
+    clearTimeout(S.timer); S.phase = 'idle'; S.review = null;
+    $('bp-play').classList.remove('on'); $('bp-setup').style.display = ''; $('bp-start').disabled = !S.user;
+    $('bp-timer').classList.remove('on'); status('');
+  }
+
+  // ── Выбор уровня ──
+  function drawLevels() {
+    $('bp-levels').innerHTML = LEVELS.map(l => `
+      <button class="bp-level${l.key === S.level ? ' sel' : ''}" data-lv="${l.key}">
+        <h3>${esc(l.name)}</h3><div class="t">${l.sec} с</div>
+        <p>${esc(l.note)}</p><span class="pts">+${l.pts} очк. за задачу</span>
+      </button>`).join('');
+    document.querySelectorAll('[data-lv]').forEach(b => b.addEventListener('click', () => { S.level = b.dataset.lv; drawLevels(); }));
+  }
+
+  // ── Статистика и лидерборд ──
+  async function loadStats() {
+    if (!S.user) return;
+    try {
+      const d = await api('/api/blind/stats');
+      $('bp-stats').innerHTML = '<table class="bp-table"><tr><th>Уровень</th><th class="n">Решено</th><th class="n">Точность</th><th class="n">Лучш. серия</th><th class="n">Очки</th></tr>' +
+        LEVELS.map(l => { const s = d.levels[l.key];
+          return `<tr><td>${esc(l.name)}</td><td class="n">${s.solved}/${s.attempts}</td><td class="n">${s.accuracy}%</td><td class="n">${s.bestStreak}</td><td class="n">${s.points}</td></tr>`; }).join('') +
+        `<tr><td><b>Всего</b></td><td class="n"><b>${d.totals.solved}/${d.totals.attempts}</b></td><td class="n"><b>${d.totals.accuracy}%</b></td><td class="n">—</td><td class="n"><b>${d.totals.points}</b></td></tr></table>`;
+    } catch (e) {}
+  }
+  async function loadLeaderboard() {
+    try {
+      const d = await api('/api/blind/leaderboard');
+      $('bp-lb').innerHTML = d.length
+        ? '<table class="bp-table"><tr><th>#</th><th>Игрок</th><th class="n">Очки</th><th class="n">Решено</th></tr>' +
+          d.map(u => `<tr><td>${u.rank}</td><td><a href="/profile/${encodeURIComponent(u.username)}" style="color:inherit">${esc(u.username)}</a></td><td class="n">${u.points}</td><td class="n">${u.solved}</td></tr>`).join('') + '</table>'
+        : '<span style="color:var(--text3)">Пока никого нет — стань первым!</span>';
+    } catch (e) { $('bp-lb').textContent = '—'; }
+  }
+
+  // ── Инициализация ──
+  async function init() {
+    drawLevels(); loadLeaderboard();
+    try { const r = await fetch('/api/me', { credentials: 'same-origin' }); if (r.ok) S.user = await r.json(); } catch (e) {}
+    if (S.user) { $('bp-start').disabled = false; loadStats(); } else { $('bp-login').classList.add('on'); }
+  }
+  $('bp-start').addEventListener('click', startPuzzle);
+  $('bp-next').addEventListener('click', startPuzzle);
+  $('bp-quit').addEventListener('click', backToSetup);
+  $('bp-login-btn').addEventListener('click', () => window.CH && CH.openAuthModal('login'));
+  $('bp-promo').addEventListener('click', e => { if (e.target.id === 'bp-promo') { $('bp-promo').classList.remove('on'); S.phase = 'input'; } });
+  init();
+})();
+</script>
+</body>
+</html>
