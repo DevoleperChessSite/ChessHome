@@ -102,7 +102,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
   <div class="bp-login" id="bp-login">
     <span data-i18n="blind.need_login">Чтобы играть и сохранять результаты, нужно войти в аккаунт.</span>
-    <button class="bp-btn primary" id="bp-login-btn">Войти</button>
+    <button class="bp-btn primary" id="bp-login-btn" data-i18n="blind.login_btn">Войти</button>
   </div>
 
   <div id="bp-setup">
@@ -110,12 +110,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="bp-opts">
       <label for="bp-diff"><span data-i18n="blind.puzzle_diff">Сложность задачи:</span></label>
       <select id="bp-diff">
-        <option value="">любая</option>
-        <option value="easy">лёгкая</option>
-        <option value="medium">средняя</option>
-        <option value="hard">сложная</option>
+        <option value="" data-i18n="blind.diff_any">любая</option>
+        <option value="easy" data-i18n="blind.diff_easy">лёгкая</option>
+        <option value="medium" data-i18n="blind.diff_medium">средняя</option>
+        <option value="hard" data-i18n="blind.diff_hard">сложная</option>
       </select>
-      <button class="bp-btn primary" id="bp-start" disabled>Начать</button>
+      <button class="bp-btn primary" id="bp-start" data-i18n="blind.start" disabled>Начать</button>
     </div>
   </div>
 
@@ -137,20 +137,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <div class="bp-line" id="bp-info"></div>
       </div>
       <div class="bp-card" id="bp-lines" style="display:none">
-        <h4>Разбор</h4>
+        <h4 data-i18n="blind.review">Разбор</h4>
         <div class="bp-line" id="bp-sol"></div>
         <div class="bp-line" id="bp-played" style="margin-top:6px"></div>
       </div>
       <div class="bp-row">
-        <button class="bp-btn primary" id="bp-next" style="display:none">Следующая задача</button>
-        <button class="bp-btn" id="bp-quit">К выбору уровня</button>
+        <button class="bp-btn primary" id="bp-next" style="display:none" data-i18n="blind.next">Следующая задача</button>
+        <button class="bp-btn" id="bp-quit" data-i18n="blind.back">К выбору уровня</button>
       </div>
     </div>
   </div>
 
   <div class="bp-bottom">
-    <div class="bp-card"><h4>Моя статистика</h4><div id="bp-stats"><span style="color:var(--text3)">Войдите, чтобы увидеть статистику</span></div></div>
-    <div class="bp-card"><h4>Лидерборд (всё время)</h4><div id="bp-lb">…</div></div>
+    <div class="bp-card"><h4 data-i18n="blind.my_stats">Моя статистика</h4><div id="bp-stats"><span style="color:var(--text3)" data-i18n="blind.stats_login">Войдите, чтобы увидеть статистику</span></div></div>
+    <div class="bp-card"><h4 data-i18n="blind.leaderboard">Лидерборд (всё время)</h4><div id="bp-lb">…</div></div>
   </div>
 </div>
 
@@ -160,21 +160,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 (function () {
   'use strict';
 
-  // ── i18n с русскими запасными строками (ключей blind.* в словаре пока нет) ──
-  function T(key, fb) {
-    try { const v = window.CH_I18N ? window.CH_I18N.t(key) : undefined; if (v && v !== key) return v; } catch (e) {}
-    return fb;
-  }
+  // ── i18n: все тексты берутся из /locales/{ru,en}.json (раздел «blind») ──
+  const T = (key, vars) => (window.CH_I18N ? window.CH_I18N.t(key, vars) : key);
   const esc = window.escapeHtml || (s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
   const $ = id => document.getElementById(id);
   const notify = (m, t) => { if (typeof window.toast === 'function') window.toast(m, t || 'info'); };
 
   const LEVELS = [
-    { key: 'easy',   name: 'Лёгкий',   sec: 10, pts: 1, note: 'Подсветка всех ходов остаётся на доске' },
-    { key: 'medium', name: 'Средний',  sec: 5,  pts: 2, note: 'Подсвечивается только последняя пара ходов' },
-    { key: 'hard',   name: 'Сложный',  sec: 2,  pts: 3, note: 'Без подсветок, ответ соперника — текстом' },
-    { key: 'insane', name: 'Безумный', sec: 1,  pts: 4, note: 'Ответы соперника тоже скрыты' },
+    { key: 'easy',   sec: 10, pts: 1 },
+    { key: 'medium', sec: 5,  pts: 2 },
+    { key: 'hard',   sec: 2,  pts: 3 },
+    { key: 'insane', sec: 1,  pts: 4 },
   ];
+  const lvName = k => T('blind.level_' + k);
   const PIECE = t => t.toUpperCase();
 
   // ── Состояние живёт в замыкании: после «заката» фигур их нет ни в DOM, ни в window ──
@@ -182,6 +180,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     level: 'easy', user: null, sessionId: null, phase: 'idle', timer: null,
     board: [], startFen: '', flipped: false, selected: null, hl: [], level_cfg: null,
     drag: null, review: null, reviewIdx: 0, wrongSq: null, startedLevel: null,
+    st: { key: '', cls: '', vars: null }, info: null, rv: null,
   };
 
   // ── Доска / FEN ──
@@ -233,7 +232,25 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     if (S.level === 'medium') return S.hl.slice(-2).flat();
     return [];
   };
-  function status(msg, cls) { const e = $('bp-status'); e.textContent = msg || ''; e.className = 'bp-status' + (cls ? ' ' + cls : ''); }
+  function status(key, cls, vars) {
+    S.st = { key: key || '', cls: cls || '', vars: vars || null };
+    const e = $('bp-status'); e.textContent = key ? T(key, vars) : ''; e.className = 'bp-status' + (cls ? ' ' + cls : '');
+  }
+  const errKey = e => e.status === 401 ? 'blind.err_login'
+    : (e.data && e.data.early) ? 'blind.err_early'
+    : e.status === 404 ? 'blind.err_no_puzzles'
+    : e.status === 429 ? 'blind.err_rate' : 'blind.err_generic';
+  function drawInfo() {
+    const I = S.info; if (!I) return;
+    $('bp-info-h').textContent = lvName(I.level) + ' · ' + I.pts + ' ' + T('blind.pts_short');
+    $('bp-info').innerHTML = esc(T(I.flipped ? 'blind.black_to_move' : 'blind.white_to_move')) + '<br>' + esc(T('blind.moves_to_solve', { n: '@@' })).replace('@@', '<b>' + I.moves + '</b>');
+  }
+  function drawLines() {
+    const R = S.rv; if (!R) return;
+    $('bp-sol').innerHTML = '<b>' + esc(T('blind.solution')) + '</b> ' + R.sol.map(esc).join(' ');
+    $('bp-played').innerHTML = '<b>' + esc(T('blind.your_moves')) + '</b> ' + R.played.map((m, i) =>
+      (!R.ok && i === R.played.length - 1) ? '<span class="x">' + esc(m) + ' ✗</span>' : esc(m)).join(' ');
+  }
 
   // ── API ──
   async function api(url, opts) {
@@ -248,7 +265,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     if (!S.user) { $('bp-login').classList.add('on'); return; }
     clearTimeout(S.timer);
     $('bp-start').disabled = true; $('bp-next').style.display = 'none';
-    status('Загрузка…', 'info');
+    status('blind.st_loading', 'info');
     try {
       const diff = $('bp-diff').value;
       const q = '/api/blind/puzzle?level=' + S.level + (diff ? '&difficulty=' + diff : '');
@@ -259,19 +276,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       $('bp-setup').style.display = 'none'; $('bp-play').classList.add('on');
       $('bp-lines').style.display = 'none'; $('bp-nav').classList.remove('on');
       const lv = LEVELS.find(l => l.key === S.level);
-      $('bp-info-h').textContent = lv.name + ' · ' + lv.pts + ' ' + T('blind.pts_short', 'очк.');
-      $('bp-info').innerHTML = (S.flipped ? 'Ход чёрных' : 'Ход белых') + '<br>Ходов до решения: <b>' + d.movesCount + '</b>';
+      S.info = { level: S.level, pts: lv.pts, flipped: S.flipped, moves: d.movesCount };
+      drawInfo();
       // Фаза запоминания
       S.phase = 'memorize';
       render({ pieces: true, board: S.board });
-      status('Запоминай позицию!', 'info');
+      status('blind.st_memorize', 'info');
       const bar = $('bp-timer-bar'), tm = $('bp-timer');
       tm.classList.add('on'); bar.style.transition = 'none'; bar.style.transform = 'scaleX(1)';
       void bar.offsetWidth;
       bar.style.transition = 'transform ' + d.memorizeMs + 'ms linear'; bar.style.transform = 'scaleX(0)';
       S.timer = setTimeout(hidePieces, d.memorizeMs);
     } catch (e) {
-      status(e.status === 401 ? 'Войдите в аккаунт' : (e.message || 'Ошибка'), 'bad');
+      status(errKey(e), 'bad');
       if (e.status === 401) $('bp-login').classList.add('on');
       $('bp-start').disabled = false;
       if (!$('bp-play').classList.contains('on')) $('bp-setup').style.display = '';
@@ -282,7 +299,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     S.phase = 'input';
     $('bp-timer').classList.remove('on');
     render({ pieces: false, hl: [] });             // в DOM фигур больше нет
-    status('Фигуры скрыты. Твой ход — ходи по памяти.', 'info');
+    status('blind.st_hidden', 'info');
   }
 
   // ── Ввод хода: drag&drop и клик-клик через pointer events (работает и на таче) ──
@@ -329,23 +346,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     S.phase = 'busy'; render({ pieces: false, hl: currentHl() });
     try {
       const d = await api('/api/blind/move', { method: 'POST', body: JSON.stringify({ sessionId: S.sessionId, uci }) });
-      if (d.illegal) { status('✗ Так ходить нельзя — попробуй другой ход', 'bad'); S.phase = 'input'; return; }
+      if (d.illegal) { status('blind.st_illegal', 'bad'); S.phase = 'input'; return; }
       if (!d.correct) { S.wrongSq = to; return finish(d, false); }
       S.board = applyUci(S.board, d.canon || uci);
       S.hl.push([from, to]);
       if (d.finished) return finish(d, true);
-      status('✓ Верно!', 'ok');
+      status('blind.st_correct', 'ok');
       if (d.autoMove) {
         const a = d.autoMove;
         S.board = applyUci(S.board, a);
-        if (S.level === 'insane') { status('✓ Верно! Соперник ответил (ход скрыт)', 'ok'); }
-        else if (S.level === 'hard') { status('✓ Верно! Соперник ответил: ' + a, 'ok'); }
-        else { S.hl.push([sqOf(a.slice(0, 2)), sqOf(a.slice(2, 4))]); status('✓ Верно! Соперник ответил — ходы подсвечены', 'ok'); }
+        if (S.level === 'insane') { status('blind.st_correct_hidden', 'ok'); }
+        else if (S.level === 'hard') { status('blind.st_correct_text', 'ok', { move: a }); }
+        else { S.hl.push([sqOf(a.slice(0, 2)), sqOf(a.slice(2, 4))]); status('blind.st_correct_hl', 'ok'); }
       }
       S.phase = 'input'; render({ pieces: false, hl: currentHl() });
     } catch (e) {
-      if (e.data && e.data.restart) { notify('Сессия сброшена — начни задачу заново', 'info'); return backToSetup(); }
-      status(e.message || 'Ошибка связи', 'bad'); S.phase = 'input'; render({ pieces: false, hl: currentHl() });
+      if (e.data && e.data.restart) { notify(T('blind.session_reset'), 'info'); return backToSetup(); }
+      status(errKey(e), 'bad'); S.phase = 'input'; render({ pieces: false, hl: currentHl() });
     }
   }
 
@@ -358,13 +375,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     sol.forEach(m => positions.push(applyUci(positions[positions.length - 1], m)));
     S.review = { positions, sol }; S.reviewIdx = ok ? positions.length - 1 : 0;
     // Текстовый разбор: решение и ходы игрока (неверный отмечен ✗)
-    $('bp-sol').innerHTML = '<b>Решение:</b> ' + sol.map(esc).join(' ');
-    $('bp-played').innerHTML = '<b>Твои ходы:</b> ' + played.map((m, i) =>
-      (!ok && i === played.length - 1) ? '<span class="x">' + esc(m) + ' ✗</span>' : esc(m)).join(' ');
+    S.rv = { sol, played, ok }; drawLines();
     $('bp-lines').style.display = ''; $('bp-nav').classList.add('on');
     const r = d.result || {};
-    if (ok) status('🎉 Решено! +' + (r.gained || 0) + ' очк. · серия ' + (r.streak || 0), 'ok');
-    else status('✗ Неверно. Серия сброшена. Смотри разбор ниже.', 'bad');
+    if (ok) status('blind.st_solved', 'ok', { gained: r.gained || 0, streak: r.streak || 0 });
+    else status('blind.st_wrong', 'bad');
     $('bp-next').style.display = ''; $('bp-start').disabled = false;
     drawReview(); loadStats(); loadLeaderboard();
   }
@@ -381,7 +396,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   }));
 
   function backToSetup() {
-    clearTimeout(S.timer); S.phase = 'idle'; S.review = null;
+    clearTimeout(S.timer); S.phase = 'idle'; S.review = null; S.rv = null; S.info = null;
     $('bp-play').classList.remove('on'); $('bp-setup').style.display = ''; $('bp-start').disabled = !S.user;
     $('bp-timer').classList.remove('on'); status('');
   }
@@ -390,8 +405,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   function drawLevels() {
     $('bp-levels').innerHTML = LEVELS.map(l => `
       <button class="bp-level${l.key === S.level ? ' sel' : ''}" data-lv="${l.key}">
-        <h3>${esc(l.name)}</h3><div class="t">${l.sec} с</div>
-        <p>${esc(l.note)}</p><span class="pts">+${l.pts} очк. за задачу</span>
+        <h3>${esc(lvName(l.key))}</h3><div class="t">${esc(T('blind.seconds', { n: l.sec }))}</div>
+        <p>${esc(T('blind.note_' + l.key))}</p><span class="pts">${esc(T('blind.pts_per_puzzle', { n: l.pts }))}</span>
       </button>`).join('');
     document.querySelectorAll('[data-lv]').forEach(b => b.addEventListener('click', () => { S.level = b.dataset.lv; drawLevels(); }));
   }
@@ -400,20 +415,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   async function loadStats() {
     if (!S.user) return;
     try {
-      const d = await api('/api/blind/stats');
-      $('bp-stats').innerHTML = '<table class="bp-table"><tr><th>Уровень</th><th class="n">Решено</th><th class="n">Точность</th><th class="n">Лучш. серия</th><th class="n">Очки</th></tr>' +
+      const d = S.statsData = await api('/api/blind/stats');
+      $('bp-stats').innerHTML = '<table class="bp-table"><tr><th>' + esc(T('blind.col_level')) + '</th><th class="n">' + esc(T('blind.col_solved')) + '</th><th class="n">' + esc(T('blind.col_accuracy')) + '</th><th class="n">' + esc(T('blind.col_best_streak')) + '</th><th class="n">' + esc(T('blind.col_points')) + '</th></tr>' +
         LEVELS.map(l => { const s = d.levels[l.key];
-          return `<tr><td>${esc(l.name)}</td><td class="n">${s.solved}/${s.attempts}</td><td class="n">${s.accuracy}%</td><td class="n">${s.bestStreak}</td><td class="n">${s.points}</td></tr>`; }).join('') +
-        `<tr><td><b>Всего</b></td><td class="n"><b>${d.totals.solved}/${d.totals.attempts}</b></td><td class="n"><b>${d.totals.accuracy}%</b></td><td class="n">—</td><td class="n"><b>${d.totals.points}</b></td></tr></table>`;
+          return `<tr><td>${esc(lvName(l.key))}</td><td class="n">${s.solved}/${s.attempts}</td><td class="n">${s.accuracy}%</td><td class="n">${s.bestStreak}</td><td class="n">${s.points}</td></tr>`; }).join('') +
+        `<tr><td><b>${esc(T('blind.total'))}</b></td><td class="n"><b>${d.totals.solved}/${d.totals.attempts}</b></td><td class="n"><b>${d.totals.accuracy}%</b></td><td class="n">—</td><td class="n"><b>${d.totals.points}</b></td></tr></table>`;
     } catch (e) {}
   }
   async function loadLeaderboard() {
     try {
-      const d = await api('/api/blind/leaderboard');
+      const d = S.lbData = await api('/api/blind/leaderboard');
       $('bp-lb').innerHTML = d.length
-        ? '<table class="bp-table"><tr><th>#</th><th>Игрок</th><th class="n">Очки</th><th class="n">Решено</th></tr>' +
+        ? '<table class="bp-table"><tr><th>#</th><th>' + esc(T('blind.col_player')) + '</th><th class="n">' + esc(T('blind.col_points')) + '</th><th class="n">' + esc(T('blind.col_solved')) + '</th></tr>' +
           d.map(u => `<tr><td>${u.rank}</td><td><a href="/profile/${encodeURIComponent(u.username)}" style="color:inherit">${esc(u.username)}</a></td><td class="n">${u.points}</td><td class="n">${u.solved}</td></tr>`).join('') + '</table>'
-        : '<span style="color:var(--text3)">Пока никого нет — стань первым!</span>';
+        : '<span style="color:var(--text3)">' + esc(T('blind.lb_empty')) + '</span>';
     } catch (e) { $('bp-lb').textContent = '—'; }
   }
 
@@ -428,7 +443,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   $('bp-quit').addEventListener('click', backToSetup);
   $('bp-login-btn').addEventListener('click', () => window.CH && CH.openAuthModal('login'));
   $('bp-promo').addEventListener('click', e => { if (e.target.id === 'bp-promo') { $('bp-promo').classList.remove('on'); S.phase = 'input'; } });
-  init();
+  // Смена языка в настройках: статические data-i18n обновляет сам i18n.js,
+  // динамические блоки перерисовываем здесь.
+  document.addEventListener('ch-lang-changed', () => {
+    drawLevels(); drawInfo(); drawLines();
+    status(S.st.key, S.st.cls, S.st.vars);
+    if (S.user && S.statsData) loadStats();
+    loadLeaderboard();
+  });
+  // Ждём словарь, чтобы тексты не мигали ключами.
+  if (window.CH_I18N && window.CH_I18N.onReady) window.CH_I18N.onReady(init); else init();
 })();
 </script>
 </body>
