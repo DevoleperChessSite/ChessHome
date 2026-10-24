@@ -1270,3 +1270,108 @@
   s.defer = true;
   document.head.appendChild(s);
 })();
+
+// ── ЛЁГКИЙ СЛЕД ЗА КУРСОРОМ (только ПК с мышью) ──────────────────────────────
+// Тонкий золотой «хвост», который быстро тает. Один прозрачный canvas поверх
+// страницы (pointer-events: none — клики не мешает). Пока мышь не двигается —
+// цикл анимации полностью остановлен (0% CPU). На телефонах/планшетах и при
+// prefers-reduced-motion не создаётся вообще.
+// Выключить на конкретной странице: <html data-no-cursor-trail>
+(function () {
+  'use strict';
+  if (window.__chTrail) return;
+  window.__chTrail = true;
+
+  var DESKTOP = window.matchMedia('(min-width: 769px) and (hover: hover) and (pointer: fine)');
+  var REDUCE  = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var LIFE    = 420;          // сколько живёт точка следа, мс  (короче = легче)
+  var MAX_PTS = 22;           // максимум точек в хвосте
+  var MIN_DIST = 3;           // не добавляем точки, если мышь сдвинулась меньше, px
+  var WIDTH   = 5;            // толщина у курсора, px (к хвосту сужается)
+  var RGB     = '201,168,76'; // золотой (#c9a84c), как акцент сайта
+
+  var canvas, ctx, dpr = 1, w = 0, h = 0;
+  var pts = [], raf = 0, bound = false;
+
+  function enabled() {
+    return DESKTOP.matches && !REDUCE.matches &&
+           !document.documentElement.hasAttribute('data-no-cursor-trail');
+  }
+
+  function ensureCanvas() {
+    if (canvas) return;
+    canvas = document.createElement('canvas');
+    canvas.id = 'ch-cursor-trail';
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.style.cssText =
+      'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9998;';
+    ctx = canvas.getContext('2d');
+    document.body.appendChild(canvas);
+    resize();
+  }
+
+  function resize() {
+    if (!canvas) return;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = window.innerWidth; h = window.innerHeight;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+  }
+
+  function onMove(e) {
+    if (!enabled()) return;
+    var last = pts[pts.length - 1];
+    if (last) {
+      var dx = e.clientX - last.x, dy = e.clientY - last.y;
+      if (dx * dx + dy * dy < MIN_DIST * MIN_DIST) return;
+    }
+    ensureCanvas();
+    pts.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+    if (pts.length > MAX_PTS) pts.shift();
+    if (!raf) raf = requestAnimationFrame(draw);
+  }
+
+  function draw(now) {
+    raf = 0;
+    // выкидываем протухшие точки
+    while (pts.length && now - pts[0].t > LIFE) pts.shift();
+    ctx.clearRect(0, 0, w, h);
+    if (pts.length < 2) { pts.length = 0; return; }   // нечего рисовать → цикл остановлен
+
+    for (var i = 1; i < pts.length; i++) {
+      var a = pts[i - 1], b = pts[i];
+      var life = 1 - (now - b.t) / LIFE;              // 1 → свежая точка, 0 → умерла
+      if (life <= 0) continue;
+      ctx.strokeStyle = 'rgba(' + RGB + ',' + (life * 0.55).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(0.6, WIDTH * life * (i / pts.length));
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+    raf = requestAnimationFrame(draw);                // хвост ещё тает — продолжаем
+  }
+
+  function stop() {
+    pts.length = 0;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    if (canvas) { canvas.remove(); canvas = ctx = null; }
+  }
+
+  function init() {
+    if (bound) return;
+    bound = true;
+    window.addEventListener('mousemove', onMove, { passive: true });
+    window.addEventListener('resize', resize, { passive: true });
+    document.addEventListener('mouseleave', function () { pts.length = 0; });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) stop(); });
+    var off = function () { if (!enabled()) stop(); };
+    if (DESKTOP.addEventListener) { DESKTOP.addEventListener('change', off); REDUCE.addEventListener('change', off); }
+  }
+
+  if (document.body) init();
+  else document.addEventListener('DOMContentLoaded', init);
+})();

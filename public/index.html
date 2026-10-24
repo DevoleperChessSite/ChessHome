@@ -1506,6 +1506,144 @@
     .cmdk-item.active { background: rgba(201,168,76,0.16); color: #fff; }
     .cmdk-item.active .cmdk-group { color: var(--accent, #c9a84c); }
     .cmdk-empty { padding: 24px; text-align: center; color: var(--text-muted, #6b6b7a); font-size: 13px; }
+
+    /* ══════════════════════════════════════════════════════
+       3D-ПАРАЛЛАКС ДОСКА НА ЗАДНЕМ ПЛАНЕ (только ПК, мышь)
+       Создаётся скриптом "CH3D" ниже. На телефонах/планшетах
+       (нет мыши или ширина ≤ 768px) ничего не создаётся —
+       там остаётся прежняя анимированная доска в .hero-visual.
+    ══════════════════════════════════════════════════════ */
+    #ch3d-bg {
+      position: fixed;
+      inset: 0;
+      z-index: -1;               /* под всем контентом сайта */
+      overflow: hidden;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .8s ease;
+      contain: layout paint;
+    }
+    #ch3d-bg.on { opacity: 1; }
+    html.ch3d-on .hero-visual { display: none !important; } /* на ПК вместо canvas-доски */
+
+    #ch3d-bg .ch3d-glow {
+      position: absolute; inset: -10%;
+      background:
+        radial-gradient(ellipse 45% 55% at 66% 52%, rgba(201,168,76,.20), transparent 70%),
+        radial-gradient(ellipse 60% 60% at 20% 90%, rgba(201,168,76,.07), transparent 70%);
+    }
+    #ch3d-bg .ch3d-shade {            /* затемнение слева — чтобы текст читался */
+      position: absolute; inset: 0;
+      background:
+        linear-gradient(90deg, rgba(12,12,18,.78) 0%, rgba(12,12,18,.45) 38%, rgba(12,12,18,0) 68%),
+        radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(8,8,12,.65) 100%);
+    }
+
+    /* парящие «линзовые» фигуры — как листья в видео: ближние двигаются сильнее */
+    #ch3d-bg .ch3d-fl { position: absolute; will-change: transform; }
+    #ch3d-bg .ch3d-fl > span {
+      display: block; line-height: 1; color: var(--accent, #c9a84c);
+      animation: ch3dFloat 9s ease-in-out infinite alternate;
+    }
+    @keyframes ch3dFloat {
+      from { transform: translateY(-8px) rotate(-4deg); }
+      to   { transform: translateY(10px)  rotate(5deg); }
+    }
+
+    #ch3d-bg .ch3d-stage {
+      position: absolute; inset: 0;
+      perspective: 1500px;
+      perspective-origin: 50% 35%;
+    }
+    #ch3d-bg .ch3d-board {
+      --bs: min(74vh, 50vw);
+      --ct: -56deg; --cz: 30deg;   /* контр-поворот фигур (ставит JS) */
+      position: absolute;
+      left: 68%; top: 53%;
+      width: var(--bs); height: var(--bs);
+      margin: calc(var(--bs) / -2) 0 0 calc(var(--bs) / -2);
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+    /* рама + «толщина» доски */
+    #ch3d-bg .ch3d-frame {
+      position: absolute; inset: 0;
+      transform-style: preserve-3d;
+      background: linear-gradient(135deg, #7a5230, #4a2f19);
+      border-radius: 6px;
+      box-shadow: 0 0 0 2px rgba(201,168,76,.45);
+    }
+    #ch3d-bg .ch3d-side {
+      position: absolute; background: linear-gradient(#5a3a1f, #2c1a0c);
+      backface-visibility: hidden;
+    }
+    #ch3d-bg .ch3d-side.f { left: 0; top: 100%; width: 100%; height: calc(var(--bs) * .045);
+      transform-origin: 50% 0; transform: rotateX(-90deg); }
+    #ch3d-bg .ch3d-side.b { left: 0; top: 0; width: 100%; height: calc(var(--bs) * .045);
+      transform-origin: 50% 0; transform: rotateX(-90deg) translateZ(0) rotateY(180deg); }
+    #ch3d-bg .ch3d-side.r { left: 100%; top: 0; width: calc(var(--bs) * .045); height: 100%;
+      transform-origin: 0 50%; transform: rotateY(90deg); }
+    #ch3d-bg .ch3d-side.l { left: 0; top: 0; width: calc(var(--bs) * .045); height: 100%;
+      transform-origin: 0 50%; transform: rotateY(90deg) rotateX(180deg); }
+    #ch3d-bg .ch3d-shadow {            /* мягкая тень под доской */
+      position: absolute; inset: -6%;
+      background: radial-gradient(closest-side, rgba(0,0,0,.65), transparent);
+      transform: translateZ(calc(var(--bs) * -.06));
+    }
+    #ch3d-bg .ch3d-grid {
+      position: absolute; inset: 3.5%;
+      display: grid; grid-template: repeat(8, 1fr) / repeat(8, 1fr);
+      transform: translateZ(1px);
+      box-shadow: 0 0 0 1px rgba(0,0,0,.35);
+    }
+    #ch3d-bg .ch3d-sq.l { background: #f0d9b5; }
+    #ch3d-bg .ch3d-sq.d { background: #b58863; }
+    #ch3d-bg .ch3d-sq.hl.l { background: #cdd26a; }
+    #ch3d-bg .ch3d-sq.hl.d { background: #aaa23a; }
+    #ch3d-bg .ch3d-sq { transition: background-color .3s; }
+
+    #ch3d-bg .ch3d-pieces {
+      position: absolute; inset: 3.5%;
+      transform-style: preserve-3d;
+      transform: translateZ(2px);
+    }
+    #ch3d-bg .ch3d-pc {
+      --x: 0; --y: 0; --z: 0px;
+      position: absolute; left: 0; top: 0; width: 12.5%; height: 12.5%;
+      transform-style: preserve-3d;
+      transform: translate3d(calc(var(--x) * 100%), calc(var(--y) * 100%), var(--z));
+      transition: transform .7s cubic-bezier(.45,.05,.25,1);
+    }
+    #ch3d-bg .ch3d-pc.lift { --z: calc(var(--bs) * .05); transition-duration: .22s; }
+    #ch3d-bg .ch3d-pc::before {        /* тень на доске */
+      content: ''; position: absolute; left: 14%; right: 14%; bottom: 6%; height: 16%;
+      background: radial-gradient(closest-side, rgba(0,0,0,.5), transparent);
+      transform: translateZ(0);
+      transition: opacity .5s ease;
+    }
+    #ch3d-bg .ch3d-pc.cap::before,
+    #ch3d-bg .ch3d-pieces.fade .ch3d-pc::before { opacity: 0; }
+    #ch3d-bg .ch3d-pc-in {
+      position: absolute; inset: 0;
+      transform-origin: 50% 88%;
+      transform: rotateZ(var(--cz)) rotateX(var(--ct));
+      transform-style: flat;
+    }
+    #ch3d-bg .ch3d-pc-in img {
+      position: absolute; left: -10%; bottom: 0; width: 120%; height: 120%;
+      object-fit: contain;
+      filter: drop-shadow(0 6px 8px rgba(0,0,0,.55));
+      transition: opacity .5s ease, transform .5s ease;
+    }
+    #ch3d-bg .ch3d-pc.cap .ch3d-pc-in img { opacity: 0; transform: scale(.6); }
+    #ch3d-bg .ch3d-pc.mate-w .ch3d-pc-in img { filter: drop-shadow(0 0 14px #5cf08f) drop-shadow(0 6px 8px rgba(0,0,0,.5)); }
+    #ch3d-bg .ch3d-pc.mate-b .ch3d-pc-in img { filter: drop-shadow(0 0 14px #ff5a5a) drop-shadow(0 6px 8px rgba(0,0,0,.5)); }
+    #ch3d-bg .ch3d-pieces.fade .ch3d-pc-in img { opacity: 0; }
+    #ch3d-bg .ch3d-pieces.fade .ch3d-pc { transition: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      #ch3d-bg .ch3d-fl > span { animation: none; }
+    }
   </style>
 </head>
 <body>
@@ -2834,6 +2972,230 @@ window.__pzLbMode = (function(){ try { return localStorage.getItem('pzLbMode') =
     };
   }
   syncTabs();
+})();
+</script>
+
+<script>
+// ── CH3D: 3D-ПАРАЛЛАКС ШАХМАТНАЯ ДОСКА НА ФОНЕ (только ПК с мышью) ──────────
+// Двигаешь мышь — доска наклоняется, фигуры «стоят» на ней, а парящие
+// фигуры на переднем/заднем плане смещаются с разной силой (параллакс).
+// Телефоны/планшеты (нет hover + тонкого указателя, или ≤768px) — НИЧЕГО
+// не создаётся и не грузится: остаётся прежняя анимированная доска.
+(function () {
+  'use strict';
+
+  var DESKTOP = window.matchMedia('(min-width: 769px) and (hover: hover) and (pointer: fine)');
+  var REDUCE  = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var PIECE_DIR = '/img/pieces/';
+  var TILT = 56, ROT = -30;           // базовый наклон и поворот доски, °
+  var MOVE_GAP = 1500;                // пауза между ходами, мс
+  var HOLD_MATE = 4500;               // сколько держим мат, мс
+
+  // «Детский мат»: 1.e4 e5 2.Qh5 a6 3.Bc4 Nc6 4.Qxf7#   (клетки: 0=a1 … 63=h8)
+  var MOVES = [[12,28],[52,36],[3,39],[48,40],[5,26],[57,42],[39,53]];
+
+  var root, board, pieceLayer, sqEls = [], pcEls = {}, floats = [];
+  var timers = [], raf = 0, running = false, visible = false;
+  var tx = 0, ty = 0, cx = 0, cy = 0;   // цель / текущее положение мыши [-1..1]
+  var moveIdx = 0;
+
+  function later(fn, ms) { var t = setTimeout(fn, ms); timers.push(t); return t; }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+  function el(tag, cls, parent) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  /* ── построение сцены ─────────────────────────────────── */
+  function build() {
+    if (root) return;
+    root = el('div'); root.id = 'ch3d-bg'; root.setAttribute('aria-hidden', 'true');
+    el('div', 'ch3d-glow', root);
+
+    // дальние парящие фигуры (слабый параллакс, размытие)
+    addFloat('♞', '4%',  '62%', 150, 0.10, 2,  -14);
+    addFloat('♜', '47%', '8%',  110, 0.08, 2,  -10);
+    addFloat('♝', '90%', '70%', 130, 0.09, 2,  -12);
+
+    var stage = el('div', 'ch3d-stage', root);
+    board = el('div', 'ch3d-board', stage);
+    el('div', 'ch3d-shadow', board);
+    var frame = el('div', 'ch3d-frame', board);
+    ['f', 'b', 'r', 'l'].forEach(function (s) { el('div', 'ch3d-side ' + s, frame); });
+
+    var grid = el('div', 'ch3d-grid', board);
+    for (var i = 0; i < 64; i++) {
+      var rank = 7 - Math.floor(i / 8), file = i % 8;
+      var sq = el('div', 'ch3d-sq ' + (((rank + file) % 2) ? 'l' : 'd'), grid);
+      sqEls[rank * 8 + file] = sq;
+    }
+    pieceLayer = el('div', 'ch3d-pieces', board);
+
+    // ближние парящие фигуры — «линза»: крупные, размытые, двигаются сильнее всего
+    addFloat('♛', '-3%',  '-6%', 320, 0.16, 7,  70);
+    addFloat('♞', '88%',  '58%', 360, 0.14, 8,  85);
+
+    el('div', 'ch3d-shade', root);
+    document.body.insertBefore(root, document.body.firstChild);
+  }
+
+  function addFloat(glyph, left, top, size, alpha, blur, depth) {
+    var f = el('div', 'ch3d-fl', root);
+    f.style.left = left; f.style.top = top;
+    var s = el('span', '', f);
+    s.textContent = glyph;
+    s.style.fontSize = size + 'px';
+    s.style.opacity = alpha;
+    s.style.filter = 'blur(' + blur + 'px)';
+    s.style.animationDelay = (-Math.random() * 9) + 's';
+    floats.push({ e: f, d: depth });
+  }
+
+  function resetPieces() {
+    pieceLayer.innerHTML = '';
+    pcEls = {};
+    var back = ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'];
+    for (var f = 0; f < 8; f++) {
+      addPiece('w' + back[f], f);
+      addPiece('wP', 8 + f);
+      addPiece('bP', 48 + f);
+      addPiece('b' + back[f], 56 + f);
+    }
+    moveIdx = 0;
+    highlight(-1, -1);
+  }
+
+  function place(p, sq) {
+    p.style.setProperty('--x', sq % 8);
+    p.style.setProperty('--y', 7 - Math.floor(sq / 8));
+  }
+
+  function addPiece(key, sq) {
+    var p = el('div', 'ch3d-pc', pieceLayer);
+    p.dataset.k = key;
+    place(p, sq);
+    var inn = el('div', 'ch3d-pc-in', p);
+    var img = el('img', '', inn);
+    img.alt = ''; img.draggable = false;
+    img.src = PIECE_DIR + key + '.svg';
+    pcEls[sq] = p;
+  }
+
+  function highlight(a, b) {
+    sqEls.forEach(function (s, i) { if (s) s.classList.toggle('hl', i === a || i === b); });
+  }
+
+  /* ── партия на доске ──────────────────────────────────── */
+  function playNext() {
+    if (!running) return;
+    if (moveIdx >= MOVES.length) { return finishGame(); }
+    var from = MOVES[moveIdx][0], to = MOVES[moveIdx][1];
+    var p = pcEls[from], victim = pcEls[to];
+    moveIdx++;
+    if (!p) return playNext();
+    p.classList.add('lift');                        // фигура приподнимается
+    later(function () {
+      highlight(from, to);
+      place(p, to);                                 // и плывёт на новую клетку
+      if (victim) { victim.classList.add('cap'); later(function () { victim.remove(); }, 700); }
+      delete pcEls[from]; pcEls[to] = p;
+    }, 240);
+    later(function () { p.classList.remove('lift'); }, 240 + 720);
+    later(playNext, MOVE_GAP);
+  }
+
+  function finishGame() {
+    var wk, bk;
+    Object.keys(pcEls).forEach(function (k) {
+      if (pcEls[k].dataset.k === 'wK') wk = pcEls[k];
+      if (pcEls[k].dataset.k === 'bK') bk = pcEls[k];
+    });
+    if (wk) wk.classList.add('mate-w');
+    if (bk) bk.classList.add('mate-b');
+    later(function () { pieceLayer.classList.add('fade'); }, HOLD_MATE);
+    later(function () { resetPieces(); }, HOLD_MATE + 650);
+    later(function () { pieceLayer.classList.remove('fade'); }, HOLD_MATE + 750);
+    later(playNext, HOLD_MATE + 750 + 1600);
+  }
+
+  /* ── параллакс ────────────────────────────────────────── */
+  function onMove(e) {
+    tx = (e.clientX / window.innerWidth)  * 2 - 1;
+    ty = (e.clientY / window.innerHeight) * 2 - 1;
+  }
+  function onLeave() { tx = 0; ty = 0; }
+
+  function frame(t) {
+    raf = requestAnimationFrame(frame);
+    var idle = REDUCE.matches ? 0 : 1;
+    var gx = REDUCE.matches ? 0 : tx, gy = REDUCE.matches ? 0 : ty;
+    gx += Math.sin(t / 3300) * 0.07 * idle;   // лёгкое «дыхание», когда мышь не двигают
+    gy += Math.cos(t / 4300) * 0.06 * idle;
+    cx += (gx - cx) * 0.07;
+    cy += (gy - cy) * 0.07;
+
+    var tilt = TILT - cy * 7;                 // мышь вверх/вниз — наклон доски
+    var rz   = ROT + cx * 11;                 // влево/вправо — поворот доски
+    board.style.setProperty('--ct', (-tilt + 10) + 'deg');   // фигуры смотрят в камеру, чуть «стоят»
+    board.style.setProperty('--cz', (-rz) + 'deg');
+    board.style.transform =
+      'translate3d(' + (-cx * 26).toFixed(1) + 'px,' + (-cy * 16).toFixed(1) + 'px,0) ' +
+      'rotateX(' + tilt.toFixed(2) + 'deg) rotateZ(' + rz.toFixed(2) + 'deg)';
+
+    for (var i = 0; i < floats.length; i++) {
+      var f = floats[i];
+      f.e.style.transform =
+        'translate3d(' + (cx * f.d).toFixed(1) + 'px,' + (cy * f.d * 0.7).toFixed(1) + 'px,0)';
+    }
+  }
+
+  /* ── запуск / остановка ───────────────────────────────── */
+  function start() {
+    if (running) return;
+    running = true;
+    build();
+    if (!board.dataset.ready) { resetPieces(); board.dataset.ready = '1'; }
+    document.documentElement.classList.add('ch3d-on');
+    requestAnimationFrame(function () { root.classList.add('on'); });
+    window.addEventListener('mousemove', onMove, { passive: true });
+    document.addEventListener('mouseleave', onLeave);
+    raf = requestAnimationFrame(frame);
+    if (!REDUCE.matches) later(playNext, 1800);
+  }
+
+  function stop() {
+    if (!running) return;
+    running = false;
+    cancelAnimationFrame(raf);
+    clearTimers();
+    window.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseleave', onLeave);
+    if (root) root.classList.remove('on');
+    document.documentElement.classList.remove('ch3d-on');
+    if (board && board.dataset.ready) { resetPieces(); }
+  }
+
+  // доска нужна только на главной (SPA-раздел #page-home) и пока вкладка видна
+  function homeShown() {
+    var h = document.getElementById('page-home');
+    return !!h && h.offsetParent !== null;
+  }
+  function sync() {
+    var want = DESKTOP.matches && !document.hidden && homeShown();
+    if (want) start(); else stop();
+  }
+
+  function init() {
+    sync();
+    setInterval(sync, 400);                       // следим за переключением SPA-страниц
+    document.addEventListener('visibilitychange', sync);
+    if (DESKTOP.addEventListener) DESKTOP.addEventListener('change', sync);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
 </script>
 
