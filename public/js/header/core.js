@@ -84,7 +84,7 @@
     {
       i18nLabel: 'header.sec_tools',
       items: [
-        { id: 'analysis', i18nLabel: 'header.nav_analysis',   icon: '🔍', href: '/analysis' },
+        { id: 'analysis', i18nLabel: 'header.nav_analysis',   icon: '🔍', href: '/analysis', spa: false },
         { id: 'editor',   i18nLabel: 'header.nav_editor', icon: '✏️', href: '/editor' },
         { id: 'ai',       i18nLabel: 'header.nav_ai',      icon: '🤖', href: '/ai', spa: false },
       ]

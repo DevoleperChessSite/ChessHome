@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<script src="/js/utils.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/toast.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Анализ партии — Chess Home</title>
+  <meta name="description" content="Анализ шахматных партий и позиций движком Stockfish в реальном времени: загрузка PGN и FEN, главная линия, оценка позиции.">
+  <link rel="stylesheet" href="/css/main.css">
+<link rel="icon" type="image/png" href="/img/logo/favicon.png">
+<script src="/js/i18n.js"></script>
+<!-- Yandex.Metrika counter -->
+<script type="text/javascript">
+    (function(m,e,t,r,i,k,a){
+        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=112544904', 'ym');
+
+    ym(112544904, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/112544904" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<style>
+  /* Мобильные правила раздела «Анализ» (вынесены из index.html вместе со страницей) */
+  @media (max-width: 768px) {
+    .lobby-panel { padding: 16px !important; }
+    .panel-title { font-size: 14px !important; }
+    .eval-bar-container { display: none !important; }
+    .board-area { width: 100% !important; padding: 8px !important; }
+    .board-wrapper { width: 100% !important; display: flex !important; justify-content: center !important; }
+    #chess-board {
+      width: min(calc(100vw - 16px), 480px) !important;
+      height: min(calc(100vw - 16px), 480px) !important;
+      max-width: 100% !important;
+    }
+    .board-size-control, .board-resize-handle { display: none !important; }
+    .moves-list { max-height: 140px !important; }
+    .analysis-layout { flex-direction: column !important; padding: 0 !important; }
+    #page-analysis > div { padding: 12px !important; }
+    .engine-panel { padding: 14px !important; }
+    .eval-score { font-size: 28px !important; }
+  }
+  @media (max-width: 768px) and (orientation: landscape) {
+    #chess-board {
+      width: min(calc(100vh - 120px), 360px) !important;
+      height: min(calc(100vh - 120px), 360px) !important;
+    }
+    .board-area { width: auto !important; }
+  }
+</style>
+</head>
+<body>
+
+  <div id="page-analysis" class="page active">
+    <div style="padding:16px;max-width:1100px;margin:0 auto">
+      <div class="page-header">
+        <h1>🔍 Анализ партии</h1>
+        <p>Движок Stockfish анализирует позицию в реальном времени</p>
+      </div>
+
+      <div class="analysis-layout">
+        <div class="board-area">
+          <div class="board-wrapper" id="analysis-board-container">
+            </div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoFirst()">⏮</button>
+            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoPrev()">◀</button>
+            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoNext()">▶</button>
+            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoLast()">⏭</button>
+            <button class="btn btn-ghost btn-sm" onclick="chessBoard.flipBoard()">↕</button>
+          </div>
+        </div>
+
+        <div style="flex:1;display:flex;flex-direction:column;gap:12px">
+
+          <div class="engine-panel">
+            <div class="engine-status">
+              <div class="engine-dot loading" id="engine-dot"></div>
+              <span id="engine-status-text">Загрузка движка...</span>
+            </div>
+            <div class="eval-score" id="eval-score">+0.00</div>
+            <div class="depth-line" id="eval-depth">Глубина: —</div>
+            <div class="best-move">
+              Лучший ход: <span id="best-move-uci">—</span>
+            </div>
+            <div style="margin-top:12px;font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:4px">Главная линия:</div>
+            <div class="pv-line" id="pv-line">—</div>
+          </div>
+
+          <!-- AI-комментатор (issue #71): весёлые фразы по данным движка -->
+          <div class="lobby-panel" style="padding:14px" id="ai-commentator-panel">
+            <div class="panel-title" style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
+              <span>🤖</span>
+              <span data-i18n="ai.commentator_title">AI-комментатор</span>
+              <button class="btn btn-ghost btn-sm" style="margin-left:auto;padding:2px 10px" onclick="nextAiPhrase()" title="Ещё фразу" data-i18n-title="ai.commentator_another">🎲</button>
+            </div>
+            <div id="ai-commentary" style="font-size:13px;color:var(--text-secondary);line-height:1.5;min-height:38px">
+              <span style="color:var(--text-muted)" data-i18n="ai.commentator_idle">Сделай ход в позиции — и я откомментирую…</span>
+            </div>
+          </div>
+
+          <div class="moves-list" style="max-height:220px">
+            <table class="moves-table">
+              <tbody id="moves-table-body"></tbody>
+            </table>
+          </div>
+
+          <div class="lobby-panel" style="padding:14px">
+            <div class="panel-title" style="margin-bottom:10px">📋 Загрузить FEN</div>
+            <div style="display:flex;gap:8px">
+              <input class="form-input" id="analysis-fen-input" placeholder="Вставьте FEN..." style="font-family:var(--font-mono);font-size:12px">
+              <button class="btn btn-primary btn-sm" onclick="loadAnalysisFEN()">→</button>
+            </div>
+            <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">
+              Текущий FEN: <span id="analysis-current-fen" style="font-family:var(--font-mono);word-break:break-all"></span>
+            </div>
+          </div>
+
+          <div class="lobby-panel" style="padding:14px">
+            <div class="panel-title" style="margin-bottom:10px">📝 Загрузить PGN</div>
+            <textarea class="form-input" id="pgn-input" rows="4" placeholder="Вставьте PGN..." style="resize:vertical;font-family:var(--font-mono);font-size:12px"></textarea>
+            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="loadPGN()">Загрузить PGN</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+<!-- Превращение пешки (нужно board.js при ходе пешки на последнюю горизонталь) -->
+<div class="modal-overlay" id="modal-promotion">
+  <div class="modal promo-modal">
+    <div class="promo-icon">👑</div>
+    <h2>Превращение пешки</h2>
+    <p style="color:var(--text-secondary);font-size:14px">Выберите фигуру</p>
+    <div class="promo-pieces">
+      <button class="promo-piece-btn" data-piece="Q"><img src="" alt="Q"></button>
+      <button class="promo-piece-btn" data-piece="R"><img src="" alt="R"></button>
+      <button class="promo-piece-btn" data-piece="B"><img src="" alt="B"></button>
+      <button class="promo-piece-btn" data-piece="N"><img src="" alt="N"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Итог (мат/пат на доске анализа): board.js заполняет #result-title / #result-subtitle -->
+<div class="modal-overlay" id="modal-game-result">
+  <div class="modal" style="text-align:center;position:relative">
+    <button class="modal-close" onclick="document.getElementById('modal-game-result').classList.remove('open')">✕</button>
+    <div style="font-size:48px;margin-bottom:12px">🏁</div>
+    <h2 id="result-title"></h2>
+    <p id="result-subtitle" style="color:var(--text-secondary);margin-top:8px"></p>
+    <div style="display:flex;gap:12px;justify-content:center;margin-top:24px">
+      <button class="btn btn-primary" onclick="document.getElementById('modal-game-result').classList.remove('open');chessBoard.loadAnalysis()">🔍 Новая позиция</button>
+      <button class="btn btn-secondary" onclick="location.href='/lobby'">🎮 Играть</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="/js/header/core.js"></script>
+  <script src="/js/header/styles.js"></script>
+  <script src="/js/header/render.js"></script>
+  <script src="/js/header/right.js"></script>
+  <script src="/js/header/api.js"></script>
+<script src="/js/pieces.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/vendor/chess.js"></script>
+<script src="/js/chess-engine.js"></script>
+<script src="/js/board.js"></script>
+<script src="/js/stockfish-ui.js"></script>
+<script src="/js/analysis-page.js"></script>
+</body>
+</html>

@@ -86,8 +86,11 @@ app.get('/ai', (req, res) => res.sendFile(path.join(__dirname, '../../public/ai.
 });
 
 // SPA-маршруты (клиентский роутер в index.html) — из core.js.
-const SPA_ROUTES = ['/lobby', '/analysis', '/editor', '/leaderboard'];
+const SPA_ROUTES = ['/lobby', '/editor', '/leaderboard'];
 SPA_ROUTES.forEach(r => { app.get(r, (req, res) => res.sendFile(path.join(__dirname, '../../public/index.html'))); });
+
+// Анализ партии — отдельная страница (не SPA): public/analysis.html
+app.get('/analysis', (req, res) => sendVersionedHtml(res, path.join(__dirname, '../../public/analysis.html')));
 
 
 };

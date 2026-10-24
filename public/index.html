@@ -1598,7 +1598,7 @@
   <button class="bottom-nav-item" id="bn-puzzles" onclick="showPage('puzzles');setBottomNav('bn-puzzles')">
     <span class="bn-icon">🧩</span><span data-i18n="home.bottom_nav_puzzles">Задачи</span>
   </button>
-  <button class="bottom-nav-item" id="bn-analysis" onclick="showPage('analysis');setBottomNav('bn-analysis')">
+  <button class="bottom-nav-item" id="bn-analysis" onclick="location.href='/analysis'">
     <span class="bn-icon">🔍</span><span data-i18n="home.bottom_nav_analysis">Анализ</span>
   </button>
   <button class="bottom-nav-item" id="bn-settings" onclick="location.href='/settings'">
@@ -1642,7 +1642,7 @@
           <button class="btn btn-primary btn-lg" onclick="showPage('lobby')" data-i18n="home.hero_cta_play">
             Начать игру!
           </button>
-          <button class="btn btn-secondary btn-lg" onclick="showPage('analysis')" data-i18n="home.hero_cta_analyze">
+          <button class="btn btn-secondary btn-lg" onclick="location.href='/analysis'" data-i18n="home.hero_cta_analyze">
             🔍 Анализировать
           </button>
         </div>
@@ -1736,7 +1736,7 @@
           <h3 data-i18n="home.mode_local_title">Локальная игра</h3>
           <p data-i18n="home.mode_local_desc">На одном устройстве</p>
         </div>
-        <div class="mode-card" onclick="showPage('analysis')">
+        <div class="mode-card" onclick="location.href='/analysis'">
           <div class="mode-icon">🔭</div>
           <h3 data-i18n="home.mode_analysis_title">Анализ партии</h3>
           <p data-i18n="home.mode_analysis_desc">Разбор со Stockfish</p>
@@ -1916,81 +1916,6 @@
         </div>
 
         <div style="font-size:11px;color:var(--text-muted);word-break:break-all" id="current-fen"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="page-analysis" class="page">
-    <div style="padding:16px;max-width:1100px;margin:0 auto">
-      <div class="page-header">
-        <h1>🔍 Анализ партии</h1>
-        <p>Движок Stockfish анализирует позицию в реальном времени</p>
-      </div>
-
-      <div class="analysis-layout">
-        <div class="board-area">
-          <div class="board-wrapper" id="analysis-board-container">
-            </div>
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoFirst()">⏮</button>
-            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoPrev()">◀</button>
-            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoNext()">▶</button>
-            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoLast()">⏭</button>
-            <button class="btn btn-ghost btn-sm" onclick="chessBoard.flipBoard()">↕</button>
-          </div>
-        </div>
-
-        <div style="flex:1;display:flex;flex-direction:column;gap:12px">
-
-          <div class="engine-panel">
-            <div class="engine-status">
-              <div class="engine-dot loading" id="engine-dot"></div>
-              <span id="engine-status-text">Загрузка движка...</span>
-            </div>
-            <div class="eval-score" id="eval-score">+0.00</div>
-            <div class="depth-line" id="eval-depth">Глубина: —</div>
-            <div class="best-move">
-              Лучший ход: <span id="best-move-uci">—</span>
-            </div>
-            <div style="margin-top:12px;font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:4px">Главная линия:</div>
-            <div class="pv-line" id="pv-line">—</div>
-          </div>
-
-          <!-- AI-комментатор (issue #71): весёлые фразы по данным движка -->
-          <div class="lobby-panel" style="padding:14px" id="ai-commentator-panel">
-            <div class="panel-title" style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
-              <span>🤖</span>
-              <span data-i18n="ai.commentator_title">AI-комментатор</span>
-              <button class="btn btn-ghost btn-sm" style="margin-left:auto;padding:2px 10px" onclick="nextAiPhrase()" title="Ещё фразу" data-i18n-title="ai.commentator_another">🎲</button>
-            </div>
-            <div id="ai-commentary" style="font-size:13px;color:var(--text-secondary);line-height:1.5;min-height:38px">
-              <span style="color:var(--text-muted)" data-i18n="ai.commentator_idle">Сделай ход в позиции — и я откомментирую…</span>
-            </div>
-          </div>
-
-          <div class="moves-list" style="max-height:220px">
-            <table class="moves-table">
-              <tbody id="moves-table-body"></tbody>
-            </table>
-          </div>
-
-          <div class="lobby-panel" style="padding:14px">
-            <div class="panel-title" style="margin-bottom:10px">📋 Загрузить FEN</div>
-            <div style="display:flex;gap:8px">
-              <input class="form-input" id="analysis-fen-input" placeholder="Вставьте FEN..." style="font-family:var(--font-mono);font-size:12px">
-              <button class="btn btn-primary btn-sm" onclick="loadAnalysisFEN()">→</button>
-            </div>
-            <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">
-              Текущий FEN: <span id="analysis-current-fen" style="font-family:var(--font-mono);word-break:break-all"></span>
-            </div>
-          </div>
-
-          <div class="lobby-panel" style="padding:14px">
-            <div class="panel-title" style="margin-bottom:10px">📝 Загрузить PGN</div>
-            <textarea class="form-input" id="pgn-input" rows="4" placeholder="Вставьте PGN..." style="resize:vertical;font-family:var(--font-mono);font-size:12px"></textarea>
-            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="loadPGN()">Загрузить PGN</button>
-          </div>
-        </div>
       </div>
     </div>
   </div>
