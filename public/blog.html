@@ -1003,11 +1003,19 @@ async function hidePost() {
 }
 
 // ── EDITOR ───────────────────────────────────────────────────────
-function openEditor(id) {
+async function openEditor(id) {
   if (!isLoggedIn()) { toast(CH_I18N.t('blog.toast.login_to_write'),'info'); return; }
   editingId = id;
   if (id) {
-    const p = allPosts.find(x=>x.id===id) || currentPost;
+    // Берём ПОЛНУЮ статью. Элементы allPosts приходят из списка (/blog?limit=50)
+    // и могут не содержать полный body, из-за этого редактор открывался пустым.
+    // currentPost загружен через /blog/:id и всегда с полным текстом;
+    // если его нет (или это другая статья) — догружаем с сервера.
+    let p = (currentPost && currentPost.id === id) ? currentPost : null;
+    if (!p || typeof p.body !== 'string') {
+      try { p = await apiGet('/blog/' + id + '?noview=1'); }
+      catch (e) { toast(e.message, 'error'); editingId = null; return; }
+    }
     document.getElementById('editor-h2').textContent = CH_I18N.t('blog.edit_article_title');
     document.getElementById('post-title').value = p?.title||'';
     document.getElementById('post-body').value = p?.body||'';
