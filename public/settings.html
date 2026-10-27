@@ -125,6 +125,16 @@
       <div class="settings-title" data-i18n="settings.board_section_title">🎨 Доска</div>
       <div class="settings-row">
         <div class="settings-label">
+          <div class="settings-label-name" data-i18n="settings.home3d_name">3D-доска на главной</div>
+          <div class="settings-label-desc" data-i18n="settings.home3d_desc">Выключите на слабом устройстве: вместо неё покажется обычная доска</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="set-home3d" onchange="saveSetting('home3d',this.checked)">
+          <div class="toggle-slider"></div>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label">
           <div class="settings-label-name" data-i18n="settings.board_theme_name">Тема доски</div>
         </div>
         <div class="color-options">
@@ -257,7 +267,7 @@ function saveSetting(key, value) {
 }
 
 function loadSettings() {
-  const defaults = { sounds: true, hints: true, coords: true, animation: true };
+  const defaults = { sounds: true, hints: true, coords: true, animation: true, home3d: true };
   for (const [key, def] of Object.entries(defaults)) {
     const stored = localStorage.getItem('ch_' + key);
     const val = stored === null ? def : stored === '1';

@@ -3183,8 +3183,14 @@ window.__pzLbMode = (function(){ try { return localStorage.getItem('pzLbMode') =
     var h = document.getElementById('page-home');
     return !!h && h.offsetParent !== null;
   }
+  // Настройка «3D-доска на главной» (Настройки → Доска). По умолчанию включена.
+  // Читаем из localStorage при каждом sync(), поэтому переключение в другой
+  // вкладке применяется само, без перезагрузки.
+  function enabled() {
+    try { return localStorage.getItem('ch_home3d') !== '0'; } catch (e) { return true; }
+  }
   function sync() {
-    var want = DESKTOP.matches && !document.hidden && homeShown();
+    var want = DESKTOP.matches && !document.hidden && homeShown() && enabled();
     if (want) start(); else stop();
   }
 
