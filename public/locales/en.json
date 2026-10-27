@@ -51,6 +51,8 @@
     "animation_name": "Move animation",
     "animation_desc": "Smooth piece movement",
     "board_section_title": "🎨 Board",
+    "home3d_name": "3D board on the home page",
+    "home3d_desc": "Turn off on a low-end device: a regular board is shown instead",
     "board_theme_name": "Board theme",
     "board_theme_classic": "Classic",
     "board_theme_blue": "Blue",

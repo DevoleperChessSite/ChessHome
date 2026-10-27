@@ -51,6 +51,8 @@
     "animation_name": "Анимация ходов",
     "animation_desc": "Плавное перемещение фигур",
     "board_section_title": "🎨 Доска",
+    "home3d_name": "3D-доска на главной",
+    "home3d_desc": "Выключите на слабом устройстве: вместо неё покажется обычная доска",
     "board_theme_name": "Тема доски",
     "board_theme_classic": "Классическая",
     "board_theme_blue": "Синяя",
