@@ -742,6 +742,60 @@
     }
     .send-btn:hover svg { transform: translate(2px,-2px) rotate(-8deg); }
     .send-btn:active svg { transform: translate(4px,-3px) rotate(-12deg) scale(0.92); }
+
+    /* ═══ INBOX v2: ответы, статусы, эмодзи, группировка ═══ */
+    .inbox-chat { position: relative; }
+    .msg-area { flex: 1; position: relative; min-height: 0; display: flex; flex-direction: column; }
+    .msg-area .inbox-messages { flex: 1; }
+    .msg-wrap { position: relative; min-width: 0; }
+    .msg-row { margin-bottom: 8px; }
+    .msg-row.grouped { margin-bottom: 2px; }
+    .msg-row.grouped .msg-avatar-sm { visibility: hidden; }
+    .bulk .msg-row { animation: none; }
+    .msg-bubble a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+    .msg-row.flash .msg-bubble { animation: flashMsg 1.6s ease; }
+    @keyframes flashMsg { 0%,55% { box-shadow: 0 0 0 3px rgba(201,168,76,.6); } 100% { box-shadow: var(--inbox-shadow-sm); } }
+    .msg-quote { border-left: 3px solid var(--accent); padding: 5px 10px; margin-bottom: 4px; font-size: 12px; border-radius: 8px; background: rgba(127,127,127,.12); cursor: pointer; opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .msg-quote:hover { background: rgba(201,168,76,.14); }
+    .msg-tools { position: absolute; top: -16px; display: flex; gap: 2px; padding: 2px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--inbox-shadow-sm); opacity: 0; pointer-events: none; transform: translateY(3px); transition: opacity .15s, transform .15s; z-index: 3; }
+    .msg-row:not(.mine) .msg-tools { right: 6px; }
+    .msg-row.mine .msg-tools { left: 6px; }
+    .msg-row:hover .msg-tools, .msg-row:focus-within .msg-tools, .msg-row.tap .msg-tools { opacity: 1; pointer-events: auto; transform: none; }
+    .msg-tools button { background: none; border: 0; color: var(--text-secondary); cursor: pointer; padding: 3px 8px; border-radius: 7px; font: 600 12px var(--font-body); }
+    .msg-tools button:hover { background: var(--bg-hover); color: var(--accent); }
+    .msg-time { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+    .msg-row:not(.mine) .msg-time { justify-content: flex-start; }
+    .msg-status { font-size: 11px; letter-spacing: -2px; color: var(--text-muted); }
+    .msg-status.read { color: var(--accent); }
+    .msg-status.failed { letter-spacing: 0; color: var(--red); }
+    .retry-btn { background: none; border: 0; padding: 0; color: var(--red); font: 600 10px var(--font-body); cursor: pointer; text-decoration: underline; }
+    .msg-unread-divider { display: flex; align-items: center; gap: 10px; margin: 14px 0 8px; color: var(--accent); font-size: 11px; font-weight: 700; }
+    .msg-unread-divider::before, .msg-unread-divider::after { content: ''; flex: 1; height: 1px; background: rgba(201,168,76,.4); }
+    .reply-bar { display: none; align-items: center; gap: 10px; padding: 8px 22px; background: var(--bg-secondary); border-top: 1px solid var(--border); border-left: 3px solid var(--accent); animation: fadeInOverlay .15s; }
+    .reply-bar.on { display: flex; }
+    .reply-bar-body { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 12px; color: var(--text-muted); }
+    .reply-bar-body b { color: var(--accent); }
+    .reply-bar-body span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .reply-bar button { background: none; border: 0; color: var(--text-muted); font-size: 16px; cursor: pointer; padding: 2px 6px; }
+    .reply-bar button:hover { color: var(--text-primary); }
+    .inbox-input-area { position: relative; }
+    .input-wrap { position: relative; flex: 1; display: flex; }
+    .input-wrap .inbox-text-input { width: 100%; padding-right: 48px; }
+    .char-count { position: absolute; right: 12px; bottom: 7px; font-size: 10px; color: var(--text-muted); pointer-events: none; }
+    .char-count.warn { color: var(--red); }
+    .tool-btn { width: 46px; height: 46px; flex-shrink: 0; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-card); font-size: 20px; cursor: pointer; transition: border-color .2s, transform .15s; }
+    .tool-btn:hover { border-color: var(--accent); transform: scale(1.05); }
+    .emoji-pop { position: absolute; bottom: calc(100% + 8px); left: 22px; display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; padding: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--inbox-shadow-md); z-index: 5; animation: popInModal .18s; }
+    .emoji-pop[hidden], .to-bottom[hidden] { display: none; }
+    .emoji-pop button { background: none; border: 0; font-size: 20px; padding: 5px; border-radius: 8px; cursor: pointer; transition: transform .12s, background .12s; }
+    .emoji-pop button:hover { background: var(--bg-hover); transform: scale(1.2); }
+    .to-bottom { position: absolute; right: 22px; bottom: 14px; z-index: 4; display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--accent); background: var(--bg-card); color: var(--accent); font: 700 12px var(--font-body); cursor: pointer; box-shadow: var(--inbox-shadow-md); animation: popInModal .2s; }
+    .to-bottom #to-bottom-n:not(:empty) { background: var(--accent); color: #000; border-radius: 999px; padding: 0 7px; }
+    .typing-txt i { font-style: normal; display: inline-block; animation: typingBounce 1.2s ease-in-out infinite; }
+    .typing-txt i:nth-child(2) { animation-delay: .15s; } .typing-txt i:nth-child(3) { animation-delay: .3s; }
+    .icon-btn.soft:hover { border-color: var(--accent); color: var(--accent); background: rgba(201,168,76,.08); }
+    @media (max-width: 680px) { .reply-bar { padding: 8px 12px; } .emoji-pop { left: 12px; } .to-bottom { right: 12px; } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   </style>
 </head>
 <body>
@@ -1011,6 +1065,7 @@ function connectSocket() {
       return;
     }
 
+    if (isForMe && (activePartner !== partner || document.hidden)) playPing();
     if (isForMe && activePartner !== partner) {
       showDmNotif(msg.from, msg.text);
       const c = conversations.find(c => c.partner === partner);
@@ -1022,8 +1077,9 @@ function connectSocket() {
       // Защита от дубля (на случай гонки с polling)
       if (!messages.find(m => m.id === msg.id)) {
         messages.push(msg);
-        appendMessageToChat(msg, false);
+        appendMessageToChat(msg);
         markRead(partner);
+        refreshStatus();
       }
       const c = conversations.find(c => c.partner === partner);
       if (c) c.unread = 0;
@@ -1032,8 +1088,11 @@ function connectSocket() {
   });
 
   socket.on('dm_read', ({ by }) => {
-    // The other person read our messages — update read receipts if needed
+    if (!by || by.toLowerCase() !== (activePartner || '').toLowerCase()) return;
+    messages.forEach(m => { if (m.from === currentUser.username && !m.read) { m.read = true; repaintMsg(m); } });
   });
+
+  socket.on('dm_typing', ({ from }) => { if (from && from.toLowerCase() === (activePartner || '').toLowerCase()) showTyping(); });
 }
 
 // ─── LOAD CONVERSATIONS ───────────────────────────────────────
@@ -1099,7 +1158,7 @@ function renderConvList() {
     const isSystem = isSystemPartner(c.partner);
 
     row.innerHTML = `
-      <div class="inbox-conv-avatar">
+      <div class="inbox-conv-avatar" style="${avStyle(c.partner)}">
         ${isSystem ? '📢' : escapeHtml(c.partner[0].toUpperCase())}
         ${isOnline && !isSystem ? '<div class="online-dot-sm"></div>' : ''}
       </div>
@@ -1115,6 +1174,7 @@ function renderConvList() {
     row.addEventListener('click', () => openConversation(c.partner));
     list.appendChild(row);
   });
+  updateTabTitle();
 }
 
 // ─── OPEN CONVERSATION ────────────────────────────────────────
@@ -1127,6 +1187,8 @@ async function openConversation(partner) {
     return;
   }
 
+  saveDraft();
+  cancelDmReply();
   activePartner = partner;
   renderConvList(); // highlight active
 
@@ -1155,6 +1217,7 @@ async function openConversation(partner) {
     const data = await apiGet('/dm/messages/' + encodeURIComponent(partner));
     messages = data.messages || [];
     const conv = conversations.find(c => c.partner === partner) || {};
+    window._unreadBefore = conv.unread || 0;
     conv.unread = 0;
     // На случай новой переписки, которой ещё не было в списке диалогов —
     // берём актуальный VIP-статус собеседника прямо из ответа /dm/messages.
@@ -1193,19 +1256,23 @@ function buildChatUI(partner, data) {
   chatArea.innerHTML = `
     <div class="inbox-chat-header">
       <button class="back-btn" onclick="mobileBack()">← Назад</button>
-      <div class="inbox-conv-avatar" style="width:40px;height:40px;font-size:16px;${isSystem ? '' : 'cursor:pointer'}" ${profileClick}>${isSystem ? '📢' : escapeHtml(partner[0].toUpperCase())}${isOnline && !isSystem ? '<div class="online-dot-sm"></div>' : ''}</div>
+      <div class="inbox-conv-avatar" style="width:40px;height:40px;font-size:16px;${isSystem ? '' : 'cursor:pointer;'}${avStyle(partner)}" ${profileClick}>${isSystem ? '📢' : escapeHtml(partner[0].toUpperCase())}${isOnline && !isSystem ? '<div class="online-dot-sm"></div>' : ''}</div>
       <div class="chat-user-info">
         <div class="chat-user-name" ${isSystem ? '' : 'style="cursor:pointer"'} ${profileClick}>${escapeHtml(partner)}${isVipPartner ? ' <img src="/img/vip.png" class="vip-badge-sm" alt="VIP" title="VIP-игрок">' : ''}</div>
         <div class="chat-user-status ${isOnline && !isSystem ? 'chat-online-status' : ''}">${isSystem ? 'Системные уведомления' : (isOnline ? '● онлайн' : 'не в сети')}</div>
       </div>
       <div class="inbox-chat-actions">
+        <button class="icon-btn soft" id="sound-btn" title="Звук новых сообщений" onclick="toggleSound()">${soundOn() ? '🔔' : '🔕'}</button>
         ${isSystem ? '' : (isBlocked
           ? `<button class="icon-btn" style="color:var(--green);border-color:var(--green)" onclick="unblockUser('${escapeHtml(partner)}')">✅ Разблокировать</button>`
           : `<button class="icon-btn" onclick="confirmBlock('${escapeHtml(partner)}')">🚫 Заблокировать</button>`)
         }
       </div>
     </div>
-    <div class="inbox-messages" id="msg-list"></div>
+    <div class="msg-area">
+      <div class="inbox-messages" id="msg-list"></div>
+      <button class="to-bottom" id="to-bottom" type="button" hidden onclick="scrollMsgsToBottom(true)">↓ <span id="to-bottom-n"></span></button>
+    </div>
     <div class="blocked-bar" id="blocked-bar" style="${!isSystem && (isBlocked || isBlockedBy) ? 'display:block' : ''}">
       ${isBlocked
         ? `Вы заблокировали этого пользователя. <a onclick="unblockUser('${escapeHtml(partner)}')">Разблокировать</a>`
@@ -1215,250 +1282,374 @@ function buildChatUI(partner, data) {
       }
     </div>
     ${isSystem ? `<div class="blocked-bar" style="display:block">📢 Это системное сообщение. Ответить на него нельзя.</div>` : ''}
-    <div id="reply-preview-bar" style="display:none;align-items:center;gap:8px;padding:6px 12px;background:rgba(127,127,127,.1);border-radius:10px;margin-bottom:6px;font-size:13px"></div>
+    <div class="reply-bar" id="reply-preview-bar"></div>
     <div class="inbox-input-area" id="input-area" style="${isSystem || isBlocked || isBlockedBy ? 'display:none' : ''}">
-      <textarea class="inbox-text-input" id="dm-input" placeholder="Написать ${escapeHtml(partner)}..." maxlength="500" rows="1"
-        oninput="autoResize(this)" onkeydown="dmInputKeydown(event)"></textarea>
-      <button class="send-btn" id="send-btn" onclick="sendDm()" title="Отправить">${SEND_ICON}</button>
+      <div class="emoji-pop" id="emoji-pop" hidden></div>
+      <button type="button" class="tool-btn" id="emoji-btn" title="Эмодзи" onclick="toggleEmoji(event)">🙂</button>
+      <div class="input-wrap">
+        <textarea class="inbox-text-input" id="dm-input" placeholder="Написать ${escapeHtml(partner)}..." maxlength="500" rows="1"
+          oninput="autoResize(this);onDmInput(this)" onkeydown="dmInputKeydown(event)"></textarea>
+        <span class="char-count" id="char-count"></span>
+      </div>
+      <button class="send-btn" id="send-btn" onclick="sendDm()" title="Отправить (Enter)">${SEND_ICON}</button>
     </div>`;
 
+  _newCount = 0;
   renderMessages();
   scrollMsgsToBottom();
+  _el('msg-list')?.addEventListener('scroll', onMsgScroll, { passive: true });
+  restoreDraft(partner);
   if (!isSystem) document.getElementById('dm-input')?.focus();
 }
 
-function renderMessages() {
-  const list = document.getElementById('msg-list');
-  if (!list) return;
-  list.innerHTML = '';
+const _el = id => document.getElementById(id);
+let _replyToMsg = null, _newCount = 0;
 
-  let lastDay = '';
-
-  messages.forEach((msg, idx) => {
-    const isMine = msg.from === currentUser.username;
-    const day = formatDay(msg.ts);
-
-    if (day !== lastDay) {
-      const divider = document.createElement('div');
-      divider.className = 'msg-day-divider';
-      divider.innerHTML = `<span>${day}</span>`;
-      list.appendChild(divider);
-      lastDay = day;
-    }
-
-    const row = document.createElement('div');
-    row.className = 'msg-row' + (isMine ? ' mine' : '');
-    row.id = 'msg-' + msg.id;
-
-    const av = document.createElement('div');
-    av.className = 'msg-avatar-sm' + (isMine ? ' mine-av' : '');
-    av.textContent = isSystemPartner(msg.from) ? '📢' : msg.from[0].toUpperCase();
-    av.title = msg.from;
-
-    const wrap = document.createElement('div');
-
-    if (msg.replyTo) {
-      const quote = document.createElement('div');
-      quote.className = 'msg-quote';
-      quote.style.cssText = 'border-left:3px solid var(--accent,#c9a84c);padding:4px 10px;margin-bottom:4px;font-size:12px;opacity:.75;border-radius:6px;background:rgba(127,127,127,.12);cursor:pointer';
-      quote.innerHTML = '<b>' + escapeHtml(msg.replyTo.from) + '</b> · ' + escapeHtml(msg.replyTo.text.slice(0, 80));
-      quote.title = msg.replyTo.text;
-      quote.onclick = () => document.getElementById('msg-' + msg.replyTo.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      wrap.appendChild(quote);
-    }
-
-    const bubble = document.createElement('div');
-    bubble.className = 'msg-bubble';
-    bubble.textContent = msg.text;
-
-    const time = document.createElement('div');
-    time.className = 'msg-time';
-    time.textContent = formatTime(msg.ts);
-
-    if (!isMine && !isSystemPartner(msg.from)) {
-      const actions = document.createElement('div');
-      actions.style.cssText = 'margin-top:2px;opacity:0;transition:opacity .15s;font-size:12px';
-      actions.innerHTML = '<button type="button" class="msg-reply-btn" style="background:none;border:none;color:var(--accent,#c9a84c);cursor:pointer;padding:2px 0;font-size:12px">↩ Ответить</button>';
-      actions.querySelector('button').onclick = () => startDmReply(msg);
-      row.addEventListener('mouseenter', () => { actions.style.opacity = '1'; });
-      row.addEventListener('mouseleave', () => { actions.style.opacity = '0'; });
-      wrap.appendChild(actions);
-      wrap.dataset.msgId = msg.id;
-      wrap.dataset.msgFrom = msg.from;
-      wrap.dataset.msgText = msg.text;
-    }
-
-    wrap.appendChild(bubble);
-    wrap.appendChild(time);
-
-    row.appendChild(av);
-    row.appendChild(wrap);
-    list.appendChild(row);
-  });
+// ─── helpers ──────────────────────────────────────────────────
+function avHue(n) { let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+function avStyle(n) {
+  if (!n || isSystemPartner(n)) return '';
+  const h = avHue(n);
+  return `background:linear-gradient(135deg,hsl(${h} 55% 52%),hsl(${(h + 30) % 360} 55% 38%));color:#fff;`;
 }
+function linkify(t) {
+  return escapeHtml(t).replace(/(https?:\/\/[^\s<"']+[^\s<"'.,;:!?)\]])/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer nofollow">$1</a>');
+}
+const isTemp = m => String(m.id).startsWith('temp_');
 
-let _replyToMsg = null;
-function startDmReply(msg) {
-  _replyToMsg = { id: msg.id, from: msg.from, text: msg.text };
-  const bar = document.getElementById('reply-preview-bar');
-  if (bar) {
-    bar.style.display = 'flex';
-    bar.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">↩ <b>' + escapeHtml(msg.from) + '</b> · ' + escapeHtml(msg.text.slice(0, 60)) + '</span>'
-      + '<button type="button" id="reply-preview-cancel" style="background:none;border:none;color:var(--text-secondary,#888);cursor:pointer;font-size:16px;padding:0 6px">✕</button>';
-    document.getElementById('reply-preview-cancel').onclick = cancelDmReply;
+// ─── ОДНА функция рисует сообщение (раньше было 2 копии, и в «живой» копии
+//     не было ни кнопки «Ответить», ни цитаты — отсюда баг с перезагрузкой) ─
+function buildMsgRow(msg, prev) {
+  // страховка: если replyTo пришёл голым id — собираем цитату из загруженных сообщений
+  if (typeof msg.replyTo === 'string') {
+    const o = messages.find(m => m.id === msg.replyTo);
+    msg.replyTo = o ? { id: o.id, from: o.from, text: o.text } : null;
   }
-  document.getElementById('dm-input')?.focus();
-}
-function cancelDmReply() {
-  _replyToMsg = null;
-  const bar = document.getElementById('reply-preview-bar');
-  if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
-}
-
-function appendMessageToChat(msg, isMine) {
-  const list = document.getElementById('msg-list');
-  if (!list) return;
-
-  // Check if need day divider
-  const lastDividers = list.querySelectorAll('.msg-day-divider');
-  const today = formatDay(msg.ts);
-  const lastDivText = lastDividers.length ? lastDividers[lastDividers.length - 1].querySelector('span')?.textContent : '';
-
-  if (lastDivText !== today) {
-    const divider = document.createElement('div');
-    divider.className = 'msg-day-divider';
-    divider.innerHTML = `<span>${today}</span>`;
-    list.appendChild(divider);
-  }
+  const mine = msg.from === currentUser.username;
+  const sys = isSystemPartner(msg.from);
+  const grouped = prev && prev.from === msg.from && formatDay(prev.ts) === formatDay(msg.ts)
+    && (new Date(msg.ts) - new Date(prev.ts)) < 5 * 60000;
 
   const row = document.createElement('div');
-  row.className = 'msg-row' + (isMine ? ' mine' : '');
+  row.className = 'msg-row' + (mine ? ' mine' : '') + (grouped ? ' grouped' : '');
   row.id = 'msg-' + msg.id;
 
   const av = document.createElement('div');
-  av.className = 'msg-avatar-sm' + (isMine ? ' mine-av' : '');
-  av.textContent = isSystemPartner(msg.from) ? '📢' : msg.from[0].toUpperCase();
+  av.className = 'msg-avatar-sm' + (mine ? ' mine-av' : '');
+  av.textContent = sys ? '📢' : msg.from[0].toUpperCase();
+  av.title = msg.from;
+  if (!mine && !sys) av.style.cssText = avStyle(msg.from);
 
   const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap';
+
   if (msg.replyTo) {
-    const quote = document.createElement('div');
-    quote.className = 'msg-quote';
-    quote.style.cssText = 'border-left:3px solid var(--accent,#c9a84c);padding:4px 10px;margin-bottom:4px;font-size:12px;opacity:.75;border-radius:6px;background:rgba(127,127,127,.12)';
-    quote.innerHTML = '<b>' + escapeHtml(msg.replyTo.from) + '</b> · ' + escapeHtml(String(msg.replyTo.text).slice(0, 80));
-    wrap.appendChild(quote);
+    const q = document.createElement('div');
+    q.className = 'msg-quote';
+    q.innerHTML = '<b>' + escapeHtml(msg.replyTo.from) + '</b> · ' + escapeHtml(String(msg.replyTo.text).slice(0, 80));
+    q.title = msg.replyTo.text;
+    q.onclick = () => {
+      const t = _el('msg-' + msg.replyTo.id);
+      if (!t) return toast('Исходное сообщение выше в истории', 'error');
+      t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      t.classList.add('flash'); setTimeout(() => t.classList.remove('flash'), 1700);
+    };
+    wrap.appendChild(q);
   }
+
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
-  bubble.textContent = msg.text;
+  bubble.innerHTML = linkify(msg.text);
+  wrap.appendChild(bubble);
+
+  const tools = document.createElement('div');
+  tools.className = 'msg-tools';
+  if (!sys) {
+    const r = document.createElement('button');
+    r.type = 'button'; r.textContent = '↩ Ответить'; r.onclick = () => startDmReply(msg);
+    tools.appendChild(r);
+    bubble.ondblclick = () => startDmReply(msg);
+  }
+  const c = document.createElement('button');
+  c.type = 'button'; c.textContent = 'Копировать';
+  c.onclick = () => navigator.clipboard?.writeText(msg.text).then(() => toast('Скопировано', 'success'));
+  tools.appendChild(c);
+  wrap.appendChild(tools);
+  bubble.addEventListener('click', () => { if (matchMedia('(hover:none)').matches) row.classList.toggle('tap'); });
+
   const time = document.createElement('div');
   time.className = 'msg-time';
-  time.textContent = formatTime(msg.ts);
-
-  wrap.appendChild(bubble);
+  time.innerHTML = '<span>' + formatTime(msg.ts) + '</span><span class="msg-status"></span>';
   wrap.appendChild(time);
-  row.appendChild(av);
-  row.appendChild(wrap);
-  list.appendChild(row);
 
-  scrollMsgsToBottom();
+  row.appendChild(av); row.appendChild(wrap);
+  paintStatus(row, msg);
+  return row;
 }
 
-function scrollMsgsToBottom() {
-  requestAnimationFrame(() => {
-    const list = document.getElementById('msg-list');
-    if (list) list.scrollTop = list.scrollHeight;
+function paintStatus(row, msg) {
+  const el = row.querySelector('.msg-status');
+  if (!el || msg.from !== currentUser.username) return;
+  if (msg._state === 'failed') {
+    el.className = 'msg-status failed';
+    el.innerHTML = '<button type="button" class="retry-btn">Не отправлено · повторить</button>';
+    el.firstChild.onclick = () => sendDm(msg);
+  } else if (msg._state === 'sending') {
+    el.className = 'msg-status'; el.textContent = '…'; el.title = 'Отправляется';
+  } else {
+    el.className = 'msg-status' + (msg.read ? ' read' : '');
+    el.textContent = msg.read ? '✓✓' : '✓';
+    el.title = msg.read ? 'Прочитано' : 'Доставлено';
+  }
+}
+function repaintMsg(msg) { const r = _el('msg-' + msg.id); if (r) paintStatus(r, msg); }
+
+function renderMessages() {
+  const list = _el('msg-list');
+  if (!list) return;
+  list.innerHTML = '';
+  list.classList.add('bulk');
+  const unreadFrom = (window._unreadBefore || 0) > 0 ? messages.length - window._unreadBefore : -1;
+  let lastDay = '';
+  messages.forEach((msg, i) => {
+    const day = formatDay(msg.ts);
+    if (day !== lastDay) {
+      const d = document.createElement('div');
+      d.className = 'msg-day-divider'; d.innerHTML = `<span>${day}</span>`;
+      list.appendChild(d); lastDay = day;
+    }
+    if (i === unreadFrom) {
+      const u = document.createElement('div');
+      u.className = 'msg-unread-divider'; u.textContent = 'Новые сообщения';
+      list.appendChild(u);
+    }
+    list.appendChild(buildMsgRow(msg, unreadFrom === i ? null : messages[i - 1]));
   });
+  window._unreadBefore = 0;
+  setTimeout(() => list.classList.remove('bulk'), 60);
 }
 
-// ─── POLLING (fallback when socket is unavailable) ────────────
+function appendMessageToChat(msg) {
+  const list = _el('msg-list');
+  if (!list) return;
+  const mine = msg.from === currentUser.username;
+  const near = list.scrollHeight - list.scrollTop - list.clientHeight < 140;
+  const day = formatDay(msg.ts);
+  const divs = list.querySelectorAll('.msg-day-divider');
+  if (!divs.length || divs[divs.length - 1].textContent !== day) {
+    const d = document.createElement('div');
+    d.className = 'msg-day-divider'; d.innerHTML = `<span>${day}</span>`;
+    list.appendChild(d);
+  }
+  const i = messages.indexOf(msg);
+  list.appendChild(buildMsgRow(msg, i > 0 ? messages[i - 1] : null));
+  if (mine || near) scrollMsgsToBottom(true);
+  else { _newCount++; setFab(true); }
+}
+
+// ─── ответ на сообщение ───────────────────────────────────────
+function startDmReply(msg) {
+  if (isTemp(msg)) return toast('Сообщение ещё отправляется', 'error');
+  _replyToMsg = { id: msg.id, from: msg.from, text: msg.text };
+  const bar = _el('reply-preview-bar');
+  if (bar) {
+    bar.classList.add('on');
+    bar.innerHTML = `<div class="reply-bar-body"><b>${escapeHtml(msg.from)}</b><span>${escapeHtml(msg.text.slice(0, 90))}</span></div>
+      <button type="button" id="reply-preview-cancel" title="Отменить (Esc)">✕</button>`;
+    _el('reply-preview-cancel').onclick = cancelDmReply;
+  }
+  _el('dm-input')?.focus();
+}
+function cancelDmReply() {
+  _replyToMsg = null;
+  const bar = _el('reply-preview-bar');
+  if (bar) { bar.classList.remove('on'); bar.innerHTML = ''; }
+}
+
+// ─── скролл + кнопка «вниз» со счётчиком новых ────────────────
+function scrollMsgsToBottom(smooth) {
+  requestAnimationFrame(() => {
+    const l = _el('msg-list');
+    if (l) l.scrollTo({ top: l.scrollHeight, behavior: smooth === true ? 'smooth' : 'auto' });
+  });
+  _newCount = 0; setFab(false);
+}
+function onMsgScroll() {
+  const l = _el('msg-list'); if (!l) return;
+  const far = l.scrollHeight - l.scrollTop - l.clientHeight > 240;
+  if (!far) _newCount = 0;
+  setFab(far);
+}
+function setFab(show) {
+  const b = _el('to-bottom'); if (!b) return;
+  b.hidden = !show;
+  _el('to-bottom-n').textContent = _newCount || '';
+}
+
+// ─── POLLING (запасной канал, если сокет недоступен) ──────────
 let lastPollTs = null;
 async function pollMessages(partner) {
   if (!currentUser || activePartner !== partner) return;
   try {
-    const url = '/dm/messages/' + encodeURIComponent(partner) + (lastPollTs ? '?since=' + encodeURIComponent(lastPollTs) : '');
-    const data = await apiGet(url);
-    const newMsgs = data.messages || [];
-    // Добавляем только сообщения которых нет в messages[] (по id)
-    const knownIds = new Set(messages.map(m => m.id));
-    const added = newMsgs.filter(m => !knownIds.has(m.id));
-    if (added.length) {
-      added.forEach(m => {
+    const data = await apiGet('/dm/messages/' + encodeURIComponent(partner));
+    (data.messages || []).forEach(m => {
+      const known = messages.find(k => k.id === m.id);
+      if (known) {
+        if (m.read && !known.read && known.from === currentUser.username) { known.read = true; repaintMsg(known); }
+      } else {
         messages.push(m);
-        appendMessageToChat(m, m.from === currentUser.username);
-      });
-      markRead(partner);
-    }
+        appendMessageToChat(m);
+        if (m.from !== currentUser.username) markRead(partner);
+      }
+    });
   } catch {}
 }
 
 // ─── SEND DM ──────────────────────────────────────────────────
-// ─── Rate limit: не более 2 сообщений в секунду ──────────────
 const _dmSendTimes = [];
 function dmRateLimitOk() {
   const now = Date.now();
-  // Оставляем только отметки за последнюю секунду
   while (_dmSendTimes.length && now - _dmSendTimes[0] > 1000) _dmSendTimes.shift();
   if (_dmSendTimes.length >= 2) return false;
   _dmSendTimes.push(now);
   return true;
 }
 
-async function sendDm() {
-  const input = document.getElementById('dm-input');
-  if (!input || !activePartner) return;
-  if (isSystemPartner(activePartner)) return; // системному аккаунту ответить нельзя
-  const text = input.value.trim();
+async function sendDm(retry) {
+  const input = _el('dm-input');
+  const partner = activePartner;
+  if (!input || !partner || isSystemPartner(partner)) return;
+  const isRetry = !!(retry && retry.id);
+  const text = isRetry ? retry.text : input.value.trim();
   if (!text) return;
+  if (!dmRateLimitOk()) return toast('Не так быстро — максимум 2 сообщения в секунду', 'error');
 
-  if (!dmRateLimitOk()) {
-    toast('Не так быстро — максимум 2 сообщения в секунду', 'error');
-    return;
+  let reply = _replyToMsg;
+  if (isRetry) {
+    reply = retry.replyTo || null;
+    messages.splice(messages.indexOf(retry), 1);
+    _el('msg-' + retry.id)?.remove();
+  } else {
+    input.value = ''; input.style.height = ''; onDmInput(input);
+    try { localStorage.removeItem('dm_draft_' + partner); } catch {}
   }
+  cancelDmReply();
 
-  input.value = '';
-  input.style.height = '';
-
-  const btn = document.getElementById('send-btn');
-  if (btn) btn.disabled = true;
-
-  // Оптимистичный рендер: показываем сообщение сразу с временным id
-  const tempId = 'temp_' + Date.now();
+  // Оптимистичный рендер — теперь СРАЗУ вместе с цитатой ответа
   const tempMsg = {
-    id:   tempId,
-    from: currentUser.username,
-    to:   activePartner,
-    text,
-    ts:   new Date().toISOString(),
-    read: false
+    id: 'temp_' + Date.now(), from: currentUser.username, to: partner, text,
+    ts: new Date().toISOString(), read: false, _state: 'sending',
+    replyTo: reply ? { id: reply.id, from: reply.from, text: reply.text } : undefined
   };
   messages.push(tempMsg);
-  appendMessageToChat(tempMsg, true);
-  updateConvLastMsg(activePartner, text, tempMsg.ts, false);
+  appendMessageToChat(tempMsg);
+  updateConvLastMsg(partner, text, tempMsg.ts, false);
 
   try {
-    const msg = await apiPost('/dm/send', { to: activePartner, text, replyTo: _replyToMsg?.id || undefined });
-
-    // Заменяем временный id на настоящий (чтобы socket/polling не дублировали)
-    const idx = messages.findIndex(m => m.id === tempId);
-    if (idx !== -1) messages[idx] = msg;
-    cancelDmReply();
-
-    // Обновляем id у DOM-элемента
-    const tempEl = document.getElementById('msg-' + tempId);
-    if (tempEl) tempEl.id = 'msg-' + msg.id;
-
+    const msg = await apiPost('/dm/send', { to: partner, text, replyTo: reply?.id || undefined });
+    // сокет/поллинг могли успеть добавить это же сообщение — убираем дубль
+    const dup = messages.findIndex(m => m !== tempMsg && m.id === msg.id);
+    if (dup !== -1) { messages.splice(dup, 1); _el('msg-' + msg.id)?.remove(); }
+    const oldId = tempMsg.id;
+    Object.assign(tempMsg, msg, { replyTo: (msg.replyTo && typeof msg.replyTo === 'object') ? msg.replyTo : tempMsg.replyTo });
+    delete tempMsg._state;
+    const el = _el('msg-' + oldId);
+    if (el) { el.id = 'msg-' + tempMsg.id; paintStatus(el, tempMsg); }
   } catch (e) {
     toast(e.message || 'Ошибка отправки', 'error');
-    // Откатываем оптимистичный рендер
-    input.value = text;
-    const idx = messages.findIndex(m => m.id === tempId);
-    if (idx !== -1) messages.splice(idx, 1);
-    const tempEl = document.getElementById('msg-' + tempId);
-    if (tempEl) tempEl.remove();
+    tempMsg._state = 'failed';
+    repaintMsg(tempMsg);
   } finally {
-    if (btn) btn.disabled = false;
-    input.focus();
+    _el('dm-input')?.focus();
   }
+}
+
+// ─── ввод: счётчик, «печатает…», черновики ───────────────────
+let _typingSentAt = 0, _typingTimer;
+function onDmInput(el) {
+  const n = el.value.length, c = _el('char-count');
+  if (c) { c.textContent = n > 400 ? n + '/500' : ''; c.classList.toggle('warn', n >= 480); }
+  if (n && socket && activePartner && Date.now() - _typingSentAt > 2500) {
+    _typingSentAt = Date.now();
+    apiPost('/dm/typing', { to: activePartner }).catch(() => {});
+  }
+}
+function refreshStatus() {
+  const el = document.querySelector('.chat-user-status');
+  if (!el || !activePartner || isSystemPartner(activePartner)) return;
+  const on = onlineUsers.has(activePartner);
+  el.textContent = on ? '● онлайн' : 'не в сети';
+  el.className = 'chat-user-status' + (on ? ' chat-online-status' : '');
+}
+function showTyping() {
+  const el = document.querySelector('.chat-user-status'); if (!el) return;
+  el.innerHTML = '<span class="typing-txt">печатает<i>.</i><i>.</i><i>.</i></span>';
+  el.className = 'chat-user-status chat-online-status';
+  clearTimeout(_typingTimer); _typingTimer = setTimeout(refreshStatus, 3000);
+}
+function saveDraft() {
+  const t = _el('dm-input'); if (!t || !activePartner) return;
+  try { t.value.trim() ? localStorage.setItem('dm_draft_' + activePartner, t.value) : localStorage.removeItem('dm_draft_' + activePartner); } catch {}
+}
+function restoreDraft(p) {
+  const t = _el('dm-input'); if (!t) return;
+  try { const d = localStorage.getItem('dm_draft_' + p); if (d) { t.value = d; autoResize(t); onDmInput(t); } } catch {}
+}
+window.addEventListener('beforeunload', saveDraft);
+
+// ─── эмодзи ──────────────────────────────────────────────────
+const EMOJI = ['😀','😂','🥹','😍','😎','🤔','😅','😭','😡','👍','👎','👏','🙏','🔥','💯','🎉','❤️','💔','👀','🤝','💪','🧠','⭐','✅','❌','♟️','♞','♝','♜','♛','♚','🏆','🥇','⏱️','⚡','😴','🤯','😬','🫡','🤦'];
+function toggleEmoji(e) {
+  e?.stopPropagation();
+  const p = _el('emoji-pop'); if (!p) return;
+  if (!p.dataset.ready) {
+    p.innerHTML = EMOJI.map(x => `<button type="button" onclick="insertEmoji('${x}')">${x}</button>`).join('');
+    p.dataset.ready = 1;
+  }
+  p.hidden = !p.hidden;
+}
+function insertEmoji(x) {
+  const t = _el('dm-input'); if (!t || t.value.length + x.length > 500) return;
+  const s = t.selectionStart ?? t.value.length, e = t.selectionEnd ?? s;
+  t.value = t.value.slice(0, s) + x + t.value.slice(e);
+  t.selectionStart = t.selectionEnd = s + x.length;
+  t.focus(); autoResize(t); onDmInput(t);
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#emoji-pop') && !e.target.closest('#emoji-btn')) { const p = _el('emoji-pop'); if (p) p.hidden = true; }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { cancelDmReply(); const p = _el('emoji-pop'); if (p) p.hidden = true; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); _el('conv-search')?.focus(); }
+});
+
+// ─── звук и заголовок вкладки ────────────────────────────────
+let _ac;
+const soundOn = () => { try { return localStorage.getItem('dm_sound') !== 'off'; } catch { return true; } };
+function toggleSound() {
+  try { localStorage.setItem('dm_sound', soundOn() ? 'off' : 'on'); } catch {}
+  const b = _el('sound-btn'); if (b) b.textContent = soundOn() ? '🔔' : '🔕';
+  if (soundOn()) playPing();
+}
+function playPing() {
+  if (!soundOn()) return;
+  try {
+    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
+    const t = _ac.currentTime;
+    [[880, 0], [1175, .09]].forEach(([f, d]) => {
+      const o = _ac.createOscillator(), g = _ac.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(.0001, t + d);
+      g.gain.exponentialRampToValueAtTime(.08, t + d + .02);
+      g.gain.exponentialRampToValueAtTime(.0001, t + d + .25);
+      o.connect(g); g.connect(_ac.destination); o.start(t + d); o.stop(t + d + .26);
+    });
+  } catch {}
+}
+function updateTabTitle() {
+  const n = conversations.reduce((s, c) => s + (c.unread || 0), 0);
+  document.title = (n ? `(${n}) ` : '') + 'Личные сообщения — Chess Home';
 }
 
 function dmInputKeydown(e) {
@@ -1529,6 +1720,7 @@ async function unblockUser(username) {
 
 // ─── MOBILE BACK ──────────────────────────────────────────────
 function mobileBack() {
+  saveDraft();
   activePartner = null;
   clearInterval(pollingTimer);
   document.getElementById('inbox-sidebar')?.classList.add('visible');
@@ -1658,9 +1850,6 @@ function checkAndInsertBotText() {
     const textarea = document.getElementById('dm-input');
     
     if (textarea) {
-      // 1. Записываем текст в вашу переменную input
-      input = textFromUrl; 
-
       // 2. Вставляем текст внутрь textarea двумя способами для надежности
       textarea.value = textFromUrl;
       textarea.innerText = textFromUrl;
