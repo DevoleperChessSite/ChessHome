@@ -3,231 +3,194 @@
 // ══════════════════════════════════════════════════════════════
 
 const StockfishAnalyzer = (() => {
-  let sf = null;
-  let isReady = false;
-  let analyzing = false;
-  let usingRemote = false;
-  let remoteFallbackTimer = null;
-  let pendingRemote = null; // { fen, depth } — что запросили удалённо, на случай фолбэка
+  const KEY = 'ch_sf_cfg';
+  const DEF = { enabled: true, depth: 18, multipv: 2, threads: 1, hash: 32, remote: true, arrow: true };
+  let cfg = { ...DEF };
+  try { cfg = { ...DEF, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch (e) {}
+  let sf = null, ready = false, busy = false, queued = false, dirty = true, cur = null, lines = [];
+  let opts = {}, usingRemote = false, remoteTimer = null, waiter = null, reviewing = false, raf = 0;
+  const $ = id => document.getElementById(id);
+  const emit = (n, d) => document.dispatchEvent(new CustomEvent(n, { detail: d }));
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };
 
+  // ── жизненный цикл ──────────────────────────────────────
   function init() {
+    if (!cfg.enabled) { setStatus('off'); return false; }
+    if (sf) return true;
+    setStatus('loading');
     try {
-      // Загружаем stockfish локально с нашего сервера (нет CORS проблем)
       sf = new Worker('/js/stockfish.js');
-      sf.onmessage = handleMessage;
-      sf.onerror = (e) => {
-        console.warn('Stockfish worker error:', e);
-        setEngineStatus('error');
-        document.getElementById('engine-status-text').textContent = 'Движок недоступен (скачайте stockfish.js)';
-      };
+      sf.onmessage = e => handle(e.data || e);
+      sf.onerror = () => { setStatus('error'); sf = null; ready = false; };
       sf.postMessage('uci');
-      sf.postMessage('setoption name MultiPV value 1');
-      setEngineStatus('loading');
       return true;
-    } catch (e) {
-      console.warn('Stockfish load failed:', e);
-      setEngineStatus('error');
-      return false;
-    }
+    } catch (e) { setStatus('error'); return false; }
   }
-
-  function handleMessage(e) {
-    const line = e.data || e;
-    if (typeof line !== 'string') return;
-
-    if (line === 'uciok') {
-      sf.postMessage('isready');
-    }
-
-    if (line === 'readyok') {
-      isReady = true;
-      setEngineStatus('ready');
-    }
-
-    if (line.startsWith('info depth')) {
-      parseInfo(line);
-    }
-
-    if (line.startsWith('bestmove')) {
-      const parts = line.split(' ');
-      const bestMove = parts[1];
-      if (bestMove && bestMove !== '(none)') {
-        document.getElementById('best-move-uci').textContent = formatUCIMove(bestMove);
-      }
-      if (lastParsed && typeof AICommentator !== 'undefined') {
-        AICommentator.onBestMove(lastParsed.evalNum, lastParsed.mate);
-        lastParsed = null;
-      }
-      setEngineStatus('ready');
-      analyzing = false;
-    }
+  function applyOpts() {
+    const set = (n, v) => opts[n] && sf.postMessage(`setoption name ${n} value ${v}`);
+    set('Threads', cfg.threads); set('Hash', cfg.hash);
+    sf.postMessage(`setoption name MultiPV value ${cfg.multipv}`);
   }
-
-  // Последняя распарсенная инфо-строка (финальная оценка текущего поиска)
-  let lastParsed = null;
-
-  function parseInfo(line) {
-    const tokens = line.split(' ');
-    const get = (key) => {
-      const i = tokens.indexOf(key);
-      return i !== -1 ? tokens[i+1] : null;
-    };
-
-    const depth = get('depth');
-    const scoreCP = get('cp');
-    const scoreMate = get('mate');
-    const pv = (() => {
-      const i = tokens.indexOf('pv');
-      return i !== -1 ? tokens.slice(i+1, i+10).join(' ') : '';
-    })();
-    const multipv = get('multipv');
-
-    if (multipv && multipv !== '1') return; // Only show line 1
-
-    let evalText = '';
-    let evalNum = 0;
-
-    if (scoreMate) {
-      const m = parseInt(scoreMate);
-      evalText = m > 0 ? `M${m}` : `M${-m}`;
-      evalNum = m > 0 ? 999 : -999;
-    } else if (scoreCP !== null) {
-      evalNum = parseInt(scoreCP) / 100;
-      evalText = (evalNum > 0 ? '+' : '') + evalNum.toFixed(2);
-    }
-
-    // Check if it's black's perspective
-    const isBlackTurn = line.includes(' bm ') || checkBlackTurn();
-    if (isBlackTurn) {
-      evalNum = -evalNum;
-      if (scoreMate) {
-        const m = Math.abs(parseInt(scoreMate));
-        evalText = evalNum > 0 ? ('M' + m) : ('M-' + m);
-      } else {
-        evalText = evalNum > 0 ? '+' + evalNum.toFixed(2) : evalNum.toFixed(2);
-      }
-    }
-
-    const evalEl = document.getElementById('eval-score');
-    if (evalEl) {
-      evalEl.textContent = scoreMate ? evalText : evalText;
-      evalEl.className = 'eval-score' + (evalNum < 0 ? ' negative' : '');
-    }
-
-    const depthEl = document.getElementById('eval-depth');
-    if (depthEl) depthEl.textContent = `Глубина: ${depth}`;
-
-    const pvEl = document.getElementById('pv-line');
-    if (pvEl) pvEl.textContent = pv || '';
-
-    // Update eval bar
-    updateEvalBar(evalNum);
-
-    // Запоминаем финальную оценку для AI-комментатора (после bestmove)
-    lastParsed = { evalNum, mate: !!scoreMate };
+  function setEnabled(on) {
+    cfg.enabled = on; save();
+    if (!on) {
+      stop(); reviewing = false;
+      if (sf) { sf.terminate(); sf = null; }
+      ready = busy = queued = false; lines = [];
+      setStatus('off');
+    } else { init(); if (cur) analyze(cur.fen, cfg.depth, true); else setStatus(ready ? 'ready' : 'loading'); }
+    render(); emit('sf:toggle', on);
   }
-
-  function checkBlackTurn() {
-    return typeof chessBoard !== 'undefined' && chessBoard.state.turn === 'b';
+  function set(p) {
+    Object.assign(cfg, p); save();
+    if ('multipv' in p || 'threads' in p || 'hash' in p) dirty = true;
+    if (cur && cfg.enabled) analyze(cur.fen, cfg.depth, true);
   }
-
-  function updateEvalBar(evalNum) {
-    const bar = document.getElementById('eval-bar-fill');
-    if (!bar) return;
-    // Convert eval to percentage (0-100, 50 = equal)
-    const pct = 50 + Math.min(Math.max(evalNum * 5, -45), 45);
-    bar.style.height = pct + '%';
-  }
-
-  function analyze(fen, depth = 18) {
-    // Сначала пробуем домашний воркер — если сокет подключён, шлём запрос
-    // и ждём подтверждения. Если за 1.5с сервер не откликнулся (или сразу
-    // прислал analyze_unavailable — воркеров нет/все заняты), уходим на
-    if (typeof socket !== 'undefined' && socket && socket.connected) {
-      usingRemote = true;
-      pendingRemote = { fen, depth };
-      analyzing = true;
-      setEngineStatus('thinking');
-      socket.emit('analyze_request', { fen, depth });
-      clearTimeout(remoteFallbackTimer);
-      remoteFallbackTimer = setTimeout(() => {
-        if (usingRemote && pendingRemote) { usingRemote = false; analyzeLocal(fen, depth); }
-      }, 1500);
-      return;
-    }
-    analyzeLocal(fen, depth);
-  }
-
-  function analyzeLocal(fen, depth) {
-    if (!sf) {
-      init();
-      setTimeout(() => analyzeLocal(fen, depth), 500);
-      return;
-    }
-    if (!isReady) { setTimeout(() => analyzeLocal(fen, depth), 200); return; }
-    analyzing = true;
-    setEngineStatus('thinking');
-    sf.postMessage('position fen ' + fen);
-    sf.postMessage(`go depth ${depth}`);
-  }
-
-  // Прилетела строка от домашнего воркера (сырой UCI-вывод настоящего
-  // Stockfish) — это ровно тот же формат, что и у локального движка в
-  // браузере, поэтому просто прогоняем через тот же handleMessage().
-  function handleRemoteMessage(line) {
-    clearTimeout(remoteFallbackTimer);
-    pendingRemote = null;
-    handleMessage(line);
-  }
-
-  // Сервер сообщил, что воркеров нет/все заняты (сразу, или воркер
-  // отвалился прямо во время анализа) — падаем на локальный движок.
-  function handleRemoteUnavailable() {
-    clearTimeout(remoteFallbackTimer);
-    if (usingRemote && pendingRemote) {
-      const { fen, depth } = pendingRemote;
-      usingRemote = false;
-      pendingRemote = null;
-      analyzeLocal(fen, depth);
-    }
-  }
-
   function stop() {
-    if (usingRemote) {
-      if (typeof socket !== 'undefined' && socket) socket.emit('analyze_cancel');
-      usingRemote = false;
-      pendingRemote = null;
-      clearTimeout(remoteFallbackTimer);
-      analyzing = false;
+    if (usingRemote) { if (typeof socket !== 'undefined' && socket) socket.emit('analyze_cancel'); usingRemote = false; clearTimeout(remoteTimer); }
+    if (sf && busy) sf.postMessage('stop');
+  }
+
+  // ── запросы ─────────────────────────────────────────────
+  function analyze(fen, depth, force) {
+    depth = depth || cfg.depth;
+    if (!force && cur && cur.fen === fen && cur.depth === depth && (busy || usingRemote || lines.length)) return;
+    if (usingRemote) { try { socket.emit('analyze_cancel'); } catch (e) {} usingRemote = false; }
+    cur = { fen, turn: fen.split(' ')[1] || 'w', depth };
+    lines = []; schedule();
+    if (!cfg.enabled) return;
+    const canRemote = cfg.remote && cfg.multipv === 1 && !reviewing && typeof socket !== 'undefined' && socket && socket.connected;
+    if (canRemote) {
+      usingRemote = true; setStatus('thinking');
+      socket.emit('analyze_request', { fen, depth });
+      clearTimeout(remoteTimer);
+      remoteTimer = setTimeout(() => { if (usingRemote) { usingRemote = false; local(); } }, 1500);
       return;
     }
-    if (sf && analyzing) { sf.postMessage('stop'); }
+    local();
+  }
+  function local() {
+    if (!sf) { init(); return; }          // запустится по readyok
+    if (!ready) return;
+    if (busy) { queued = true; sf.postMessage('stop'); return; }
+    start();
+  }
+  function start() {
+    if (dirty) { applyOpts(); dirty = false; }
+    busy = true; queued = false; setStatus('thinking');
+    sf.postMessage('position fen ' + cur.fen);
+    sf.postMessage('go depth ' + cur.depth);
   }
 
-  function setEngineStatus(status) {
-    const dot = document.getElementById('engine-dot');
-    const text = document.getElementById('engine-status-text');
-    if (!dot || !text) return;
-    dot.className = 'engine-dot ' + status;
-    const labels = { ready: 'Готов', thinking: 'Анализирует...', error: 'Ошибка загрузки', loading: 'Загрузка...' };
-    text.textContent = labels[status] || status;
+  // ── разбор вывода UCI ───────────────────────────────────
+  function handle(line) {
+    if (typeof line !== 'string') return;
+    if (line.startsWith('option name ')) { const m = line.match(/^option name (\S+)/); if (m) opts[m[1]] = 1; }
+    else if (line === 'uciok') { applyOpts(); dirty = false; sf.postMessage('isready'); }
+    else if (line === 'readyok') { if (!ready) { ready = true; setStatus('ready'); emit('sf:ready', opts); if (cur) local(); } }
+    else if (line.startsWith('info') && line.includes(' pv ')) info(line);
+    else if (line.startsWith('bestmove')) done();
+  }
+  function info(line) {
+    if (queued || !cur) return;
+    const t = line.split(' '), g = k => { const i = t.indexOf(k); return i < 0 ? null : t[i + 1]; };
+    const mate = g('mate'), cp = g('cp');
+    if (mate === null && cp === null) return;
+    const sign = cur.turn === 'b' ? -1 : 1, p = t.indexOf('pv');
+    lines[(+g('multipv') || 1) - 1] = {
+      depth: +g('depth'), cp: mate !== null ? null : sign * +cp,
+      mate: mate !== null ? sign * +mate : null, pv: t.slice(p + 1, p + 13)
+    };
+    schedule();
+  }
+  function done() {
+    busy = false;
+    if (queued) { start(); return; }
+    setStatus('ready');
+    const l = lines[0];
+    if (waiter) { const w = waiter; waiter = null; w(l ? pawns(l) : 0); }
+    else if (l && !reviewing && typeof AICommentator !== 'undefined') AICommentator.onBestMove(pawns(l), l.mate !== null);
+    emit('sf:done', { fen: cur.fen, line: l, ev: l ? pawns(l) : null });
+  }
+  function handleRemoteMessage(line) {
+    clearTimeout(remoteTimer);
+    handle(line);
+    if (typeof line === 'string' && line.startsWith('bestmove')) usingRemote = false;
+  }
+  function handleRemoteUnavailable() { clearTimeout(remoteTimer); if (usingRemote) { usingRemote = false; local(); } }
+
+  // ── разбор всей партии (быстрый проход по позициям) ─────
+  const once = (fen, depth) => new Promise(res => { waiter = res; analyze(fen, depth, true); });
+  async function review(fens, depth, onStep) {
+    if (!cfg.enabled) return null;
+    reviewing = true; const ev = [];
+    try { for (let i = 0; i < fens.length && reviewing; i++) { ev[i] = await once(fens[i], depth); onStep(i, ev[i], fens.length); } }
+    finally { reviewing = false; waiter = null; }
+    return ev;
   }
 
-  function formatUCIMove(uci) {
-    if (!uci || uci.length < 4) return uci;
-    const from = uci.slice(0, 2);
-    const to = uci.slice(2, 4);
-    const promo = uci[4] ? uci[4].toUpperCase() : '';
-    return from + '-' + to + (promo ? '=' + promo : '');
+  // ── отображение ─────────────────────────────────────────
+  const pawns = l => l.mate !== null ? (l.mate > 0 ? 99 : -99) : l.cp / 100;
+  const fmt = l => l.mate !== null ? (l.mate < 0 ? '-' : '') + 'M' + Math.abs(l.mate)
+    : (l.cp > 0 ? '+' : '') + (l.cp / 100).toFixed(2);
+  function sans(pv) {
+    const out = [];
+    try {
+      let st = ChessEngine.parseFEN(cur.fen);
+      for (const u of pv) {
+        const f = u.charCodeAt(0) - 97 + (u.charCodeAt(1) - 49) * 8, t = u.charCodeAt(2) - 97 + (u.charCodeAt(3) - 49) * 8;
+        const c = ChessEngine.allLegalMoves(st).filter(m => m.from === f && m.to === t);
+        const m = c.find(x => String(x.promotion || '').toLowerCase() === (u[4] || '')) || c[0];
+        if (!m) break;
+        out.push(ChessEngine.toSAN(st, m)); st = ChessEngine.applyMove(st, m);
+      }
+    } catch (e) {}
+    return out.length ? out : pv;
+  }
+  function pvText(pv) {
+    const p = (cur.fen.split(' ')), s = sans(pv);
+    let n = +p[5] || 1, white = p[1] !== 'b', txt = '';
+    s.forEach((m, i) => {
+      if (white) txt += n + '. '; else if (i === 0) txt += n + '… ';
+      txt += m + ' '; if (!white) n++; white = !white;
+    });
+    return txt.trim();
+  }
+  function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
+  function render() {
+    const l = lines[0], txt = (id, v) => { const e = $(id); if (e) e.textContent = v; };
+    const ev = $('eval-score');
+    if (ev) { ev.textContent = !cfg.enabled ? 'OFF' : l ? fmt(l) : '—'; ev.className = 'eval-score' + (l && pawns(l) < 0 ? ' negative' : ''); }
+    txt('eval-depth', l ? 'Глубина: ' + l.depth : 'Глубина: —');
+    txt('best-move-uci', l && cur ? (sans(l.pv.slice(0, 1))[0] || '—') : '—');
+    const bar = $('eval-bar-fill');
+    if (bar) bar.style.height = (l ? 100 / (1 + Math.exp(-0.45 * pawns(l))) : 50) + '%';
+    const box = $('engine-lines'); if (!box) return;
+    box.innerHTML = !cfg.enabled ? '<div class="eng-empty">Движок выключен — нажмите кнопку выше, чтобы включить</div>'
+      : lines.filter(Boolean).map(x => `<div class="eng-line"><b class="eng-ev${pawns(x) < 0 ? ' neg' : ''}">${fmt(x)}</b><span class="eng-pv">${pvText(x.pv)}</span></div>`).join('')
+        || '<div class="eng-empty">Думаю…</div>';
+    emit('sf:lines');
+  }
+  function setStatus(s) {
+    const dot = $('engine-dot'), text = $('engine-status-text'), tg = $('engine-toggle');
+    if (dot) dot.className = 'engine-dot ' + s;
+    if (text) text.textContent = { ready: 'Готов', thinking: 'Анализирует…', error: 'Ошибка загрузки (нужен /js/stockfish.js)', loading: 'Загрузка…', off: 'Выключен' }[s] || s;
+    if (tg) tg.textContent = cfg.enabled ? '⏸ Движок включён' : '▶ Движок выключен';
   }
 
-  return { init, analyze, stop, isReady: () => isReady, handleRemoteMessage, handleRemoteUnavailable };
+  return {
+    init, analyze, stop, setEnabled, set, review, handleRemoteMessage, handleRemoteUnavailable,
+    cancelReview: () => { reviewing = false; },
+    cfg: () => ({ ...cfg }), hasOpt: n => !!opts[n], isReady: () => ready,
+    get reviewing() { return reviewing; }, pawns,
+    snapshot: () => ({ fen: cur && cur.fen, lines: lines.filter(Boolean) })
+  };
 })();
 
-// Global function to request analysis
+// Анализируем ПРОСМАТРИВАЕМУЮ позицию (а не последнюю в партии)
 function requestAnalysis() {
-  const fen = chessBoard.getFEN();
-  StockfishAnalyzer.analyze(fen, 20);
+  if (StockfishAnalyzer.reviewing) return;
+  StockfishAnalyzer.analyze(chessBoard.getViewFEN ? chessBoard.getViewFEN() : chessBoard.getFEN());
 }
 
 // ══════════════════════════════════════════════════════════════

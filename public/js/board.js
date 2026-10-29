@@ -292,6 +292,7 @@ const chessBoard = (() => {
     if (pmIndicator) {
       pmIndicator.classList.toggle('visible', premove !== null);
     }
+    document.dispatchEvent(new CustomEvent('board:render'));
   }
 
   // ─── АННОТАЦИИ: кружки и стрелки ─────────────────────────
@@ -1211,6 +1212,11 @@ const chessBoard = (() => {
     loadFEN,
     loadGameMoves,
     getFEN,
+    getViewFEN: () => ChessEngine.toFEN(viewingMove >= 0 && viewingMove < historyStates.length ? historyStates[viewingMove] : state),
+    getFENs: () => historyStates.map(s => ChessEngine.toFEN(s)),
+    get viewIndex() { return viewingMove >= 0 && viewingMove < historyStates.length ? viewingMove : historyStates.length - 1; },
+    get flipped() { return isFlipped; },
+    get history() { return state.history || []; },
     flipBoard,
     resign,
     offerDraw,

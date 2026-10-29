@@ -50,85 +50,105 @@
     }
     .board-area { width: auto !important; }
   }
+
+  .board-row{display:flex;gap:10px;align-items:stretch}
+  .eval-bar-container{display:flex;align-items:flex-end;background:#23252e;width:14px}
+  #eval-bar-fill{width:100%;height:50%;background:#ececf2;transition:height .35s ease}
+  .an-controls{display:flex;gap:8px;margin-top:10px;align-items:center}
+  .an-controls .sp{flex:1}.an-controls span{font:12px var(--font-mono);color:var(--text-muted);margin:0 6px}
+  .an-field{display:flex;gap:8px;margin-top:10px;align-items:stretch}
+  .an-field .form-input{font:12px var(--font-mono)}
+  .an-side{flex:1;display:flex;flex-direction:column;gap:12px;min-width:0}
+  .engine-head{display:flex;align-items:center;gap:12px}
+  .engine-head .btn{font-weight:700}
+  .engine-dot.off{background:var(--text-muted)}.engine-dot.ready{background:var(--green)}.engine-dot.thinking{background:var(--accent);animation:pulse 1s infinite}.engine-dot.error{background:var(--red)}
+  .eval-row{display:flex;align-items:center;gap:16px;margin:14px 0 10px}
+  .eval-row .eval-score{margin:0;font-size:34px;min-width:110px}
+  .eval-score.negative{color:var(--text-primary)}
+  .eng-line{display:flex;gap:12px;align-items:baseline;padding:7px 10px;border-radius:6px;font:12px var(--font-mono)}
+  .eng-line:nth-child(odd){background:var(--bg-secondary)}
+  .eng-ev{min-width:56px;color:var(--accent)}.eng-ev.neg{color:var(--text-primary)}
+  .eng-pv{color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .eng-empty{padding:14px;text-align:center;color:var(--text-muted);font-size:13px}
+  .sf-pop{position:absolute;right:12px;top:56px;z-index:20;width:270px;padding:14px;background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .sf-pop[hidden],#eval-graph[hidden]{display:none}
+  .sf-pop label{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary);margin-bottom:10px}
+  .sf-pop input[type=range]{flex:1;accent-color:var(--accent)}
+  .sf-pop select{background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;padding:3px 6px}
+  #set-hint{font-size:11px;color:var(--text-muted);line-height:1.4}
+  #eval-graph{height:64px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;overflow:hidden}
+  #eval-graph svg{width:100%;height:100%;display:block}
+  .move-cell.q-blunder{color:var(--red)!important}.move-cell.q-blunder::after{content:' ??'}
+  .move-cell.q-mistake{color:#e0903a!important}.move-cell.q-mistake::after{content:' ?'}
+  .move-cell.q-inacc{color:#d6c24a!important}.move-cell.q-inacc::after{content:' ?!'}
+  .an-actions{display:flex;gap:10px}.an-actions .btn{flex:1}
+  @media (max-width:768px){.an-side{width:100%}.eval-row .eval-score{font-size:26px!important}}
 </style>
 </head>
 <body>
-
   <div id="page-analysis" class="page active">
     <div style="padding:16px;max-width:1100px;margin:0 auto">
-      <div class="page-header">
-        <h1>🔍 Анализ партии</h1>
-        <p>Движок Stockfish анализирует позицию в реальном времени</p>
-      </div>
-
+      <div class="page-header"><h1>🔍 Анализ партии</h1><p>Stockfish в браузере: ходите на доске, вставляйте PGN или FEN</p></div>
       <div class="analysis-layout">
         <div class="board-area">
-          <div class="board-wrapper" id="analysis-board-container">
-            </div>
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoFirst()">⏮</button>
-            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoPrev()">◀</button>
-            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoNext()">▶</button>
-            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoLast()">⏭</button>
-            <button class="btn btn-ghost btn-sm" onclick="chessBoard.flipBoard()">↕</button>
+          <div class="board-row">
+            <div class="eval-bar-container"><div id="eval-bar-fill"></div></div>
+            <div class="board-wrapper" id="analysis-board-container"></div>
           </div>
+          <div class="an-controls">
+            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoFirst()" title="В начало (↑)">⏮</button>
+            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoPrev()" title="Назад (←)">◀</button>
+            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoNext()" title="Вперёд (→)">▶</button>
+            <button class="btn btn-ghost btn-sm" onclick="chessBoard.gotoLast()" title="В конец (↓)">⏭</button>
+            <span id="move-counter">0 / 0</span><div class="sp"></div>
+            <button class="btn btn-ghost btn-sm" onclick="chessBoard.flipBoard()" title="Развернуть (F)">↕ Развернуть</button>
+          </div>
+          <div class="an-field"><input class="form-input" id="analysis-fen-input" spellcheck="false" title="Измените FEN и нажмите Enter"><button class="btn btn-ghost btn-sm" onclick="copyField('analysis-fen-input')" title="Копировать FEN">⧉</button></div>
+          <div class="an-field"><textarea class="form-input" id="pgn-input" rows="4" spellcheck="false" placeholder="Вставьте или измените PGN — партия загрузится автоматически" style="resize:vertical"></textarea><button class="btn btn-ghost btn-sm" onclick="copyField('pgn-input')" title="Копировать PGN">⧉</button></div>
         </div>
-
-        <div style="flex:1;display:flex;flex-direction:column;gap:12px">
-
-          <div class="engine-panel">
-            <div class="engine-status">
-              <div class="engine-dot loading" id="engine-dot"></div>
-              <span id="engine-status-text">Загрузка движка...</span>
+        <div class="an-side">
+          <div class="engine-panel" style="position:relative;flex:none">
+            <div class="engine-head">
+              <button class="btn btn-secondary" id="engine-toggle" onclick="StockfishAnalyzer.setEnabled(!StockfishAnalyzer.cfg().enabled)" title="Включить / выключить (E)">⏸ Движок включён</button>
+              <div class="engine-status"><div class="engine-dot loading" id="engine-dot"></div><span id="engine-status-text">Загрузка…</span></div>
+              <button class="btn btn-ghost btn-sm" id="sf-gear" style="margin-left:auto" onclick="toggleSfSettings()" title="Настройки движка">⚙</button>
             </div>
-            <div class="eval-score" id="eval-score">+0.00</div>
-            <div class="depth-line" id="eval-depth">Глубина: —</div>
-            <div class="best-move">
-              Лучший ход: <span id="best-move-uci">—</span>
+            <div class="sf-pop" id="sf-settings" hidden>
+              <label>Потоки <input type="range" id="set-threads" min="1" max="8"><b id="set-threads-v" style="min-width:20px;text-align:right"></b></label>
+              <label>Хеш <select id="set-hash"><option>16</option><option>32</option><option>64</option><option>128</option><option>256</option><option>512</option></select></label>
+              <label>Линий <input type="range" id="set-lines" min="1" max="5"><b id="set-lines-v" style="min-width:20px;text-align:right"></b></label>
+              <label>Глубина <input type="range" id="set-depth" min="10" max="30"><b id="set-depth-v" style="min-width:20px;text-align:right"></b></label>
+              <label>Стрелки на доске <input type="checkbox" id="set-arrow"></label>
+              <label>Сервер, если доступен <input type="checkbox" id="set-remote"></label>
+              <div id="set-hint"></div>
             </div>
-            <div style="margin-top:12px;font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:4px">Главная линия:</div>
-            <div class="pv-line" id="pv-line">—</div>
+            <div class="eval-row">
+              <div class="eval-score" id="eval-score">—</div>
+              <div><div class="depth-line" id="eval-depth">Глубина: —</div><div class="best-move">Лучший ход: <span id="best-move-uci">—</span></div></div>
+            </div>
+            <div id="engine-lines"></div>
           </div>
 
-          <!-- AI-комментатор (issue #71): весёлые фразы по данным движка -->
           <div class="lobby-panel" style="padding:14px" id="ai-commentator-panel">
             <div class="panel-title" style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
-              <span>🤖</span>
-              <span data-i18n="ai.commentator_title">AI-комментатор</span>
-              <button class="btn btn-ghost btn-sm" style="margin-left:auto;padding:2px 10px" onclick="nextAiPhrase()" title="Ещё фразу" data-i18n-title="ai.commentator_another">🎲</button>
+              <span>🤖</span><span data-i18n="ai.commentator_title">AI-комментатор</span>
+              <button class="btn btn-ghost btn-sm" style="margin-left:auto;padding:2px 10px" onclick="nextAiPhrase()" title="Ещё фразу">🎲</button>
             </div>
             <div id="ai-commentary" style="font-size:13px;color:var(--text-secondary);line-height:1.5;min-height:38px">
               <span style="color:var(--text-muted)" data-i18n="ai.commentator_idle">Сделай ход в позиции — и я откомментирую…</span>
             </div>
           </div>
 
-          <div class="moves-list" style="max-height:220px">
-            <table class="moves-table">
-              <tbody id="moves-table-body"></tbody>
-            </table>
-          </div>
-
-          <div class="lobby-panel" style="padding:14px">
-            <div class="panel-title" style="margin-bottom:10px">📋 Загрузить FEN</div>
-            <div style="display:flex;gap:8px">
-              <input class="form-input" id="analysis-fen-input" placeholder="Вставьте FEN..." style="font-family:var(--font-mono);font-size:12px">
-              <button class="btn btn-primary btn-sm" onclick="loadAnalysisFEN()">→</button>
-            </div>
-            <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">
-              Текущий FEN: <span id="analysis-current-fen" style="font-family:var(--font-mono);word-break:break-all"></span>
-            </div>
-          </div>
-
-          <div class="lobby-panel" style="padding:14px">
-            <div class="panel-title" style="margin-bottom:10px">📝 Загрузить PGN</div>
-            <textarea class="form-input" id="pgn-input" rows="4" placeholder="Вставьте PGN..." style="resize:vertical;font-family:var(--font-mono);font-size:12px"></textarea>
-            <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="loadPGN()">Загрузить PGN</button>
+          <div id="eval-graph" hidden title="График оценки — нажмите, чтобы перейти к ходу"></div>
+          <div class="moves-list" style="max-height:220px"><table class="moves-table"><tbody id="moves-table-body"></tbody></table></div>
+          <div class="an-actions">
+            <button class="btn btn-secondary" id="review-btn" onclick="reviewGame()">🔍 Разобрать партию</button>
+            <button class="btn btn-ghost" onclick="chessBoard.loadAnalysis()">Сбросить доску</button>
           </div>
         </div>
       </div>
     </div>
   </div>
-
 
 <!-- Превращение пешки (нужно board.js при ходе пешки на последнюю горизонталь) -->
 <div class="modal-overlay" id="modal-promotion">
