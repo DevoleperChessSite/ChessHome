@@ -97,16 +97,19 @@ app.post('/api/dm/send', authMiddleware, rateLimit(limiterStrict), async (req, r
   const blocked = await db('SELECT 1 FROM dm_blocks WHERE (blocker ILIKE $1 AND blocked ILIKE $2) OR (blocker ILIKE $2 AND blocked ILIKE $1)', [me, to]);
   if (blocked.rows.length > 0) return res.status(403).json({ error: 'Переписка заблокирована' });
 
-  let replyToId = null;
+  let replyToId = null, replyToObj = null;
   if (typeof replyTo === 'string' && replyTo) {
-    const q = await db('SELECT id FROM dm_messages WHERE id = $1 AND ((from_user ILIKE $2 AND to_user ILIKE $3) OR (from_user ILIKE $3 AND to_user ILIKE $2)) LIMIT 1', [replyTo, me.toLowerCase(), to.toLowerCase()]);
+    const q = await db('SELECT id, from_user, text FROM dm_messages WHERE id = $1 AND ((from_user ILIKE $2 AND to_user ILIKE $3) OR (from_user ILIKE $3 AND to_user ILIKE $2)) LIMIT 1', [replyTo, me.toLowerCase(), to.toLowerCase()]);
     if (!q.rows[0]) return res.status(400).json({ error: 'Сообщение для ответа не найдено' });
     replyToId = q.rows[0].id;
+    // Клиенту нужен ОБЪЕКТ цитаты (как в GET /dm/messages), а не голый id —
+    // иначе при живой доставке цитата не рисуется до перезагрузки страницы.
+    replyToObj = { id: q.rows[0].id, from: q.rows[0].from_user, text: String(q.rows[0].text || '').slice(0, 140) };
   }
 
   moderation.record({ username: me, channel: 'dm', text, target: to });
   const shadowHidden = !!meUser.shadowBanned;
-  const msg = { id: uuidv4(), from: me, to, text: text.trim(), ts: new Date().toISOString(), read: false, replyTo: replyToId };
+  const msg = { id: uuidv4(), from: me, to, text: text.trim(), ts: new Date().toISOString(), read: false, replyTo: replyToObj };
   await db('INSERT INTO dm_messages (id, from_user, to_user, text, ts, read, shadow_hidden, reply_to_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [msg.id, msg.from, msg.to, msg.text, msg.ts, msg.read, shadowHidden, replyToId]);
   // Теневой бан: получателю сообщение НЕ шлём вообще (для него это как будто
   // никогда не отправлялось) — только отправителю, чтобы у него всё выглядело
@@ -130,6 +133,27 @@ app.post('/api/dm/read', authMiddleware, async (req, res) => {
   await db("UPDATE dm_messages SET read = true WHERE to_user ILIKE $1 AND from_user ILIKE $2 AND read = false", [me, partner]);
   const partnerSocket = findSocketByUsername(req.body.partner);
   if (partnerSocket) partnerSocket.emit('dm_read', { by: req.user.username });
+  res.json({ ok: true });
+});
+
+
+// ── «печатает…»: просто пересылаем событие онлайн-собеседнику ──
+const _typingAt = new Map();
+app.post('/api/dm/typing', authMiddleware, async (req, res) => {
+  const me = req.user.username;
+  const to = String(req.body.to || '');
+  const key = me.toLowerCase();
+  const now = Date.now();
+  if (!to || to.toLowerCase() === key || isSystemSender(to) || now - (_typingAt.get(key) || 0) < 1500) return res.json({ ok: true });
+  _typingAt.set(key, now);
+  const meUser = await getUser(key);
+  if (meUser && !meUser.banned && !meUser.shadowBanned) {
+    const blocked = await db('SELECT 1 FROM dm_blocks WHERE (blocker ILIKE $1 AND blocked ILIKE $2) OR (blocker ILIKE $2 AND blocked ILIKE $1)', [me, to]);
+    if (!blocked.rows.length) {
+      const sock = findSocketByUsername(to);
+      if (sock) sock.emit('dm_typing', { from: me });
+    }
+  }
   res.json({ ok: true });
 });
 
