@@ -285,7 +285,7 @@ async function saveUser(u) {
       vip_until, shadow_banned, shadow_ban_reason, badges)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
     ON CONFLICT (id) DO UPDATE SET
-      rating=$6, games_played=$7, wins=$8, losses=$9, draws=$10,
+      password_hash=$5, rating=$6, games_played=$7, wins=$8, losses=$9, draws=$10,
       avatar=$11, role=$12, banned=$13, ban_reason=$14, emoji=$18,
       bio=$19, fshr_rating=$20, fide_rating=$21, vip_until=$22,
       shadow_banned=$23, shadow_ban_reason=$24, badges=$25
