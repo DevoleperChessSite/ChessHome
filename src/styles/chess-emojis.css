@@ -1,0 +1,35 @@
+/* src/styles/chess-emojis.css */
+
+.chess-emoji {
+  display: inline-block;
+  font-size: 1.4rem; /* Чуть крупнее обычного текста */
+  line-height: 1;
+  vertical-align: middle;
+  color: inherit;
+}
+
+/* Класс для анимации */
+.chess-emoji.animated {
+  animation: chessAchievementGlow 3s infinite alternate;
+}
+
+@keyframes chessAchievementGlow {
+  from {
+    /* Лёгкая тень и обычный размер */
+    text-shadow: 0 0 4px rgba(255, 215, 0, 0.4);
+    transform: scale(1);
+  }
+  to {
+    /* Яркое свечение и чуть больше */
+    text-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    transform: scale(1.08);
+  }
+}
+
+/* Опционально: если у пользователя в браузере стоит "уменьшить движение" */
+@media (prefers-reduced-motion: reduce) {
+  .chess-emoji.animated {
+    animation: none;
+    text-shadow: none;
+  }
+}
