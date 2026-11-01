@@ -1,0 +1,27 @@
+// src/components/ChessProfile.jsx
+import React from 'react';
+import './chess-emojis.css'; // Подключаем стили
+
+// 1. Список эмодзи, которые должны двигаться (можно менять)
+const ANIMATED_EMOJIS = new Set(['🤩', '🥳', '😎', '😍', '😁']);
+
+export const ChessProfile = ({ player }) => {
+  const emoji = player.emoji || '♟️'; // Дефолтный шахматный значок
+  
+  // 2. Проверяем: этот эмодзи должен двигаться?
+  const isAnimated = ANIMATED_EMOJIS.has(emoji);
+
+  return (
+    <div className="chess-profile-card">
+      <span className="username">{player.username}</span>
+      
+      {/* 3. Применяем класс .animated только если нужно */}
+      <span 
+        className={`chess-emoji ${isAnimated ? 'animated' : ''}`}
+        title={player.title || 'Статус игрока'}
+      >
+        {emoji}
+      </span>
+    </div>
+  );
+};
